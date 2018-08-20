@@ -41,6 +41,12 @@ class Layer(object):
         act_list = []
         #latent_dim = latent_dim if latent_dim is not None else self.latent_dim
 
+        if self.type == 'echo' and not self.layer_kwargs.get('d_max', False) and self.k != 1:
+            self.layer_kwargs['d_max'] = self.k
+            # echo params fed via kwargs, otherwise defaults (i.e. k = 1, no d_max => default)
+            self.k == 1 # ensures only one z_activation layer
+            
+
         for samp in range(self.k):
             net = 'E' if self.encoder else 'D'
             name_suffix = str(net)+'_'+str(index)+'_'+str(samp) if self.k > 1 else str(net)+'_'+str(index)
@@ -51,7 +57,7 @@ class Layer(object):
                     z_logvar = Dense(self.latent_dim, activation='linear',
                                name='z_var'+name_suffix, **self.layer_kwargs)            
                     stats_list.append([z_mean, z_logvar])
-                z_act = Lambda(layers.vae_sample, name = 'z_act'+name_suffix, **self.layer_kwargs)
+                z_act = Lambda(layers.vae_sample, name = 'z_act_'+name_suffix, arguments = self.layer_kwargs)
                 act_list.append(z_act)
 
             elif self.type in ['mul', 'ido']:
@@ -59,7 +65,12 @@ class Layer(object):
                     z_mean = Dense(self.latent_dim, activation='linear', name='z_mean'+name_suffix, **self.layer_kwargs)
                     z_logvar = Dense(self.latent_dim, activation='linear', name='z_var'+name_suffix, **self.layer_kwargs)
                     stats_list.append([z_mean, z_logvar])
-                z_act = Lambda(layers.ido_sample, name = 'z_act'+name_suffix, **self.layer_kwargs)
+                z_act = Lambda(layers.ido_sample, name = 'z_act_'+name_suffix, arguments =self.layer_kwargs)
+                act_list.append(z_act)
+
+            elif self.type in ['echo']:
+                if samp == 0:   
+                    z_act = Lambda(layers.echo_sample, name = 'z_act_'+name_suffix, arguments = self.layer_kwargs)
                 act_list.append(z_act)
 
             else:

@@ -33,7 +33,7 @@ class WrapModel(Model):
         if not callable(getattr(model, 'fit', None)):
             pass # wrap fit
         if not callable(getattr(model, 'transform', None)):
-            pass # wrap transf
+            pass # wrap transform
         if not callable(getattr(model, 'predict', None)):
             pass # wrap predict
         if not callable(getattr(model, 'generate', None)):
@@ -466,13 +466,17 @@ class NoiseModel(Model):
             layers_list = self.encoder_layers
             dims = self.encoder_dims
             ind_latent = self._enc_latent_ind
+            offset = 0
             #ind_args = self._enc_ind_args
         else:
             #self.decoder_layers = defaultdict(list)
             layers_list = self.decoder_layers
             dims = self.decoder_dims
             ind_latent = self._dec_latent_ind
+            offset = len(self.encoder_layers)
             #ind_args = self._dec_ind_args
+        print()
+        print(layers_list)
         print()
         for layer_ind in range(len(dims)):
             #if layer_ind == len(dims):
@@ -493,12 +497,12 @@ class NoiseModel(Model):
 
             if layer_ind in ind_latent:
                 # retrieve layer_arguments index for given encoding layer
-                arg_ind = ind_latent.index(layer_ind) 
-                if layers_list[arg_ind].get('latent_dim', None) is None:
-                    layers_list[arg_ind]['latent_dim'] = dims[layer_ind]
+                arg_ind = ind_latent.index(layer_ind) + offset
+                if self.layers[arg_ind].get('latent_dim', None) is None:
+                    self.layers[arg_ind]['latent_dim'] = dims[layer_ind]
                 print("ADDING DIM ", dims[layer_ind], layer_ind, ind_latent)
-                print(layers_list[arg_ind])
-                layer = layer_args.Layer(** layers_list[arg_ind])
+                print(self.layers[arg_ind])
+                layer = layer_args.Layer(** self.layers[arg_ind])
             else:
                 # default Dense layer
                 if encoder:

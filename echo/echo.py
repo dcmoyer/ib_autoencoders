@@ -119,7 +119,7 @@ class Echo(object):
                 print("Echo noise")
                 inds = permute_neighbor_indices(self.batch_size, self.d_max)
                 #inds = tf.constant(permute_neighbor_indices(self.batch_size, self.d_max), dtype=tf.int32)
-                print("inds ", len(inds))
+                print("inds ", len(inds), " , each of len ", len(inds[1]))
                 inds = tf.constant(inds, dtype=tf.int32)
                 if self.multiplicative:
                     normal_encoder = tf.log(encoder + 1e-5)

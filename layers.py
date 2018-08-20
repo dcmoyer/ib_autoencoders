@@ -4,8 +4,10 @@ from keras.layers import Lambda, merge, Dense
 from keras import activations
 from keras.initializers import Constant
 import numpy as np
+import tensorflow as tf 
 
 def vae_sample(args):
+  # standard reparametrization trick: N(0,1) => N(mu(x), sigma(x))
   z_mean, z_noise = args
   std = 1.0
   if not hasattr(z_mean, '_keras_shape'):
@@ -17,6 +19,7 @@ def vae_sample(args):
     #return z_mean + z_noise * epsilon
 
 def ido_sample(args):
+  # reparametrization trick in log normal space (i.e. multiplicative noise)
   z_mean, z_noise = args
   std = 1.0
   z_score = K.random_normal(shape=(z_mean._keras_shape[1],),
@@ -25,6 +28,59 @@ def ido_sample(args):
     
   return K.exp(K.log(z_mean) + K.exp(z_noise / 2) * z_score)
   #return K.exp(K.log(z_mean) + z_noise * epsilon)
+
+def echo_sample(z_mean, init = -5., d_max = 50, multiplicative = False, periodic = False):
+
+  batch = z_mean.get_shape().as_list()[0] if not hasattr(z_mean, '_keras_shape') else K.cast(K.shape(output)[0], K.floatx()) 
+  # td: if batch is problematic, make it a kwarg auto-filled in model...
+  latent_shape = z_mean.get_shape().as_list()[1:] if not hasattr(z_mean, '_keras_shape') else z_mean._keras_shape[1:]
+  init = tf.constant(init, shape=latent_shape, dtype=tf.float32)  # Init with very small noise
+  cap_param = tf.get_variable("capacity_parameter", initializer=init)
+  phi = tf.get_variable('phi', initializer=tf.constant(np.pi, shape=latent_shape, dtype=tf.float32))
+  c = tf.sigmoid(cap_param, name="e_cap")
+
+  def permute_neighbor_indices(batch_size, d_max=-1):
+      """Produce an index tensor that gives a permuted matrix of other samples in batch, per sample.
+      Parameters
+      ----------
+      batch_size : int
+          Number of samples in the batch.
+      d_max : int
+          The number of blocks, or the number of samples to generate per sample.
+      """
+      if d_max < 0:
+          d_max = batch_size + d_max
+      assert d_max < batch_size, "d_max < batch_size, integers. Strictly less."
+      inds = []
+      for i in range(batch_size):
+          sub_batch = list(range(batch_size))
+          sub_batch.pop(i)
+          shuffle(sub_batch)
+          # inds.append(list(enumerate([i] + sub_batch[:d_max])))
+          inds.append(list(enumerate(sub_batch[:d_max])))
+      return inds
+
+  inds = permute_neighbor_indices(batch, d_max)
+  inds = tf.constant(inds, dtype=tf.int32)
+  if multiplicative: 
+      normal_encoder = tf.log(z_mean + 1e-5) # noise calc done in log space
+  else:
+      normal_encoder = z_mean
+
+  if periodic:
+    c_z_stack = tf.stack([tf.cos(k * phi) * tf.pow(c, k) * normal_encoder for k in range(d_max)])
+  else:
+    c_z_stack = tf.stack([tf.pow(c, k) * normal_encoder for k in range(d_max)])  # no phase
+
+  noise = tf.gather_nd(c_z_stack, inds)
+  noise = tf.reduce_sum(noise, axis=1)  # Sums over d_max terms in sum
+  noise -= tf.reduce_mean(noise, axis=0)  # Add constant so batch mean is zero
+  if multiplicative:
+      noisy_encoder = z_mean * tf.exp(c * noise)
+  else:
+      noisy_encoder = z_mean + c * noise
+
+  return noisy_encoder  
 
 def my_predict(model, data, layer_name, multiple = True):
         func = K.function([model.layers[0].get_input_at(0)],
@@ -105,4 +161,6 @@ class BetaUnTrain(Layer):
   def compute_output_shape(self, input_shape):
       return (1, 1)
       #(input_shape[0], self.dim)
+
+
 

@@ -4,27 +4,19 @@
 	"optimizer": "Adam",
 	"optimizer_params": {}, 
 	"lr": 0.001,
-	"encoder_dims": [200, 150, 50],
+	"encoder_dims": [200, 200, 50],
 	"decoder_dims": null,
 	"layers": 
 		[	
 			{
-			"layer": 0, 
-			"encoder": true,
-			"type": "add",	
-			"k": 1
-			},
-			{
-			"layer": 1, 
-			"encoder": true,
-			"type": "add",	
-			"k": 1
-			},
-			{
 			"layer": -1, 
 			"encoder": true,
-			"type": "add",	
-			"k": 1
+			"type": "echo",	
+			"k": 1,
+			"layer_kwargs": {
+				"d_max": 25,
+				"init": -4
+				}
 			}
 		], 
 	"initializer": "zero",
@@ -33,40 +25,8 @@
 		"decoder": "softplus"
 		},
 	"output_activation" : "sigmoid",
-	"recon": null, 
-	"losses":
-		[
-			{
-			"type": "corex",
-			"layer": 0, 
-			"encoder": true,
-			"weight": 1, 
-			"corex_beta": 1.0,
-			"output": -1, 
-			"method": "mixture",
-			"recon": "bce"
-			},		
-			{
-			"type": "corex",
-			"layer": 1, 
-			"encoder": true,
-			"weight": 0.25,
-			"corex_beta": 0.25, 
-			"output": 1, 
-			"method": "mixture",
-			"recon": "mse"
-			},
-			{
-			"type": "corex",
-			"layer": -1, 
-			"encoder": true,
-			"weight": 0.1,
-			"corex_beta": 0.1, 
-			"output": 0, 
-			"method": "mixture",
-			"recon": "mse"
-			}
-		],
+	"recon": "bce", 
+	"losses":[],
 	"beta": 1.0, 
 	"anneal_schedule": null, 
 	"anneal_function": null
