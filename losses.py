@@ -17,6 +17,13 @@ EPS = K.epsilon()
 # EVERYTHING RETURNS BATCH X value AS DEFAULT (may sum or average if see fit)
     # return_dimensions option?
 
+
+
+def echo_loss(inputs): # what is required?  just D
+    # check what Greg's implementation calculates for D, s.b. easy to verify
+    raise NotImplementedError
+
+
 def dim_sum(true, tensor):
     #print('DIMSUM TRUE ', _true)
     #print('DIMSUM Tensor ', tensor)
@@ -157,6 +164,7 @@ def mean_squared_error(inputs):
 
 def mse(a, b):
     return (a-b)**2
+
 
 def _parse_iwae(inputs):
     if len(inputs) == 5:

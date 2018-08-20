@@ -30,8 +30,8 @@ def ido_sample(args):
   #return K.exp(K.log(z_mean) + z_noise * epsilon)
 
 def echo_sample(z_mean, init = -5., d_max = 50, multiplicative = False, periodic = False):
-
-  batch = z_mean.get_shape().as_list()[0] if not hasattr(z_mean, '_keras_shape') else K.cast(K.shape(output)[0], K.floatx()) 
+  
+  batch = z_mean.get_shape().as_list()[0] if not hasattr(z_mean, '_keras_shape') else K.int_shape(z_mean)[0] #K.cast(K.shape(z_mean)[0], K.floatx()) 
   # td: if batch is problematic, make it a kwarg auto-filled in model...
   latent_shape = z_mean.get_shape().as_list()[1:] if not hasattr(z_mean, '_keras_shape') else z_mean._keras_shape[1:]
   init = tf.constant(init, shape=latent_shape, dtype=tf.float32)  # Init with very small noise
@@ -39,6 +39,8 @@ def echo_sample(z_mean, init = -5., d_max = 50, multiplicative = False, periodic
   phi = tf.get_variable('phi', initializer=tf.constant(np.pi, shape=latent_shape, dtype=tf.float32))
   c = tf.sigmoid(cap_param, name="e_cap")
 
+  print()
+  print("ECHO SAMPLE BATCH ")
   def permute_neighbor_indices(batch_size, d_max=-1):
       """Produce an index tensor that gives a permuted matrix of other samples in batch, per sample.
       Parameters

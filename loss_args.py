@@ -161,6 +161,9 @@ class Loss(object):
             else:
                 raise NotImplementedError("only sampling and mixture of gaussian estimation of MI is supported.  other ideas?")
 
+        elif "echo" in self.type:
+            return Lambda(l.echo_loss, arguments = self.loss_kwargs, name = 'mi_echo'+name_suffix)
+
         else:
             # TRY IMPORT OF FUNCTION FROM LOSSES
             try:
