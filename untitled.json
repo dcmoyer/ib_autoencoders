@@ -1,0 +1,9 @@
+			{
+			"type": "corex",
+			"layer": 1, 
+			"encoder": true,
+			"weight": 0.5, 
+			"output": 1, 
+			"method": "mixture",
+			"recon": "mse"
+			},

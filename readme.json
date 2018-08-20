@@ -1,0 +1,80 @@
+{
+	/* TRAINING */
+	"epochs": 100,
+	"batch": 100,
+	"optimizer": "Adam",
+	"optimizer_params": {}, /* kwargs for Keras optimizer w/string name above matching function */
+	"lr": 0.001,/* custom function in loss_weights.py or float */
+	
+
+	/* ARCHITECTURE */
+	"latent_dims": [[200, 200, 50], [100, 100, 50]], /* list for single run, list of lists for loop */
+	"decoder_dims": null,
+	
+	/* NOTE 'iwae'  is a recon loss */
+
+	"noise_layer": "vae", /* added to final encoding layer : 'vae'/'add', 'ido'/'mul', 'corex', */
+	/* 'vae', 'ido', 'corex' will add noise loss by default, 'add'/'mul' will not */
+	/* note: corex == vae for now, corex only interesting for hierarchical layers */
+	"layers":  /* used for specifying additional parameters (e.g. k samples for iwae), additional noise layers */
+		[	/* list of dictionaries, or single dictionary, to be fed as arguments to LayerArgs */ 
+			{
+			"layer": -1, /* 0, 1, 2 indexing for encoder layers.  (d0, d1, d2 for decoder? not currently supported)  */
+			"encoder": true,
+			"type": "add",	/* can also be module to import */ 	
+			"k": 1,
+			"add_loss": true, /* vae, ido */
+			"layer_kwargs": {} /* may pass any additional keyword arguments to the layer here  */
+			},
+		], 
+	"initializer": "glorot_uniform",
+	/* go thru and set these for each layer... custom handling will override */
+	"activation": {  
+		"encoder": "softplus",
+		"decoder": "softplus"
+		/* can also take single string if all activations the same */
+		}, 
+	/*"intermediate_layers": [],*/
+	"output_activation" : "sigmoid",
+
+
+	/* LOSSES */
+
+	/* NOTE 'iwae'  is a recon loss */
+
+	/* default is to add bce to final decoder layer*/
+	"recon": "bce", /* or string for all  */
+
+	/* iwae, mi_joint, mi_marginal, tc, corex, vae, ido, joint_to_prior, marginal_to_prior */
+	/* methods: mixture, sampling, discriminator
+
+	"losses":[
+	/*"regularizations": [ regularizations for the various layers : mi_joint, mi_marginal, vae, ido, tc, kl_marginal */	
+		/*"mi_joint": */
+	"losses":[	
+		{	
+			"type": "bce", /* mse, iwae, or function imported from losses */ 
+			"encoder": false,
+			"weight": 1,
+		}
+		{
+			"type": "mi_joint",
+			"layer": -1, /* assumes the autoencoder layer encodes conditional given prev layer */
+			"encoder": true, /* defaults to true */
+			"weight": 1, /* write custom loss_weight functions of beta */
+			"output": -1, /* -1 = recon, otherwise assume symmetric... output should be here or in layer specification? */
+			"method": "mixture"
+		},
+		{
+			"type": "tc",
+			"layer": -1, /* also can be integer */ 
+			/* encoder defaults to true */
+			"weight": "beta", 
+			"method": "mixture" /* discriminator, mcmc */
+		},
+	],
+
+	"beta": 1.0, /* float, list (for running multiple static betas) list of lists (for 1 or more schedules) */
+	"anneal_schedule": null, /* if beta is a list and anneal_sched, defines at which epochs beta switches */
+	"anneal_function": null, /* beta as custom function of epoch, specified in anneal_functions.py */ 
+}
