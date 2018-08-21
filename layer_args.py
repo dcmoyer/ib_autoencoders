@@ -39,6 +39,7 @@ class Layer(object):
     def make_function_list(self, index = 0):
         stats_list = []
         act_list = []
+        addl_tensors = []
         #latent_dim = latent_dim if latent_dim is not None else self.latent_dim
 
         if self.type == 'echo' and not self.layer_kwargs.get('d_max', False) and self.k != 1:
@@ -57,7 +58,8 @@ class Layer(object):
                     z_logvar = Dense(self.latent_dim, activation='linear',
                                name='z_var'+name_suffix, **self.layer_kwargs)            
                     stats_list.append([z_mean, z_logvar])
-                z_act = Lambda(layers.vae_sample, name = 'z_act_'+name_suffix, arguments = self.layer_kwargs)
+                # NOTE: using layer_kwargs for dense... samplers don't need any here
+                z_act = Lambda(layers.vae_sample, name = 'z_act_'+name_suffix) #arguments = self.layer_kwargs)
                 act_list.append(z_act)
 
             elif self.type in ['mul', 'ido']:
@@ -70,7 +72,11 @@ class Layer(object):
 
             elif self.type in ['echo']:
                 if samp == 0:   
+                    # slightly different here... layer_kwargs used for echo / lambda
+                    z_mean = Dense(self.latent_dim, activation='linear', name='z_mean'+name_suffix)# **self.layer_kwargs)
                     z_act = Lambda(layers.echo_sample, name = 'z_act_'+name_suffix, arguments = self.layer_kwargs)
+                # note: k = 1 if k used as d_max, otherwise will have k separate layer calls
+                stats_list.append([z_mean])
                 act_list.append(z_act)
 
             else:

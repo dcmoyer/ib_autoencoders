@@ -17,12 +17,32 @@ EPS = K.epsilon()
 # EVERYTHING RETURNS BATCH X value AS DEFAULT (may sum or average if see fit)
     # return_dimensions option?
 
+def compute_kernel(x, y):
+    x_size = tf.shape(x)[0]
+    y_size = tf.shape(y)[0]
+    dim = tf.shape(x)[1]
+    tiled_x = tf.tile(tf.reshape(x, tf.stack([x_size, 1, dim])), tf.stack([1, y_size, 1]))
+    tiled_y = tf.tile(tf.reshape(y, tf.stack([1, y_size, dim])), tf.stack([x_size, 1, 1]))
+    return tf.exp(-tf.reduce_mean(tf.square(tiled_x - tiled_y), axis=2) / tf.cast(dim, tf.float32))
 
 
-def echo_loss(inputs): # what is required?  just D
-    # check what Greg's implementation calculates for D, s.b. easy to verify
-    raise NotImplementedError
+def mmd_loss(inputs):
+    q, p = inputs
+    q_kernel = compute_kernel(q, q)
+    p_kernel = compute_kernel(p, p)
+    qp_kernel = compute_kernel(q, p)
+    return tf.reduce_mean(q_kernel) + tf.reduce_mean(p_kernel) - 2 * tf.reduce_mean(qp_kernel)
 
+def echo_loss(inputs): # what is required?  just D... can still have kwargs
+    cap_param = inputs[0]
+    min_capacity = -log(2**-23) / 10 # d_max ... don't have access to d_max
+    # compare to what Greg's implementation calculates for D, s.b. easy to verify
+    if len(inputs)==1:
+        #raise NotImplementedError
+        #capacities = tf.identity(tf.nn.softplus(-cap_param) - np.log(self.c_min), name='capacities')
+        capacities = tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
+        cap = tf.reduce_sum(capacities, name="capacity")
+        return cap
 
 def dim_sum(true, tensor):
     #print('DIMSUM TRUE ', _true)
@@ -108,6 +128,14 @@ def corex(inputs, recon = None, mi = None, marginals = True, beta = 1.0):
     loss = dim_sum_one(recon([true, pred]))
     reg = dim_sum_one(mi([mu, logvar]))
     return K.expand_dims(loss + beta*reg, 1)# minimize corex objective
+
+
+def recon_mse_mi(inputs):
+
+    h_const = tf.constant(0.5 * np.log(2. * np.pi), dtype=tf.float32)
+    recon_error = tf.subtract(true, pred, name="recon_error")
+    mse = tf.reduce_mean(tf.square(recon_error), axis=0, name='mean_error')
+    recon_loss = tf.add(h_const, 0.5 * tf.reduce_sum(tf.log(mse + 1e-5)), name='recon_loss')
 
 # USE THIS DIRECTLY AS LAMBDA loss
 def gaussian_kl(inputs):

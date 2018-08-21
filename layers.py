@@ -5,6 +5,7 @@ from keras import activations
 from keras.initializers import Constant
 import numpy as np
 import tensorflow as tf 
+from random import shuffle
 
 def vae_sample(args):
   # standard reparametrization trick: N(0,1) => N(mu(x), sigma(x))
@@ -29,18 +30,13 @@ def ido_sample(args):
   return K.exp(K.log(z_mean) + K.exp(z_noise / 2) * z_score)
   #return K.exp(K.log(z_mean) + z_noise * epsilon)
 
-def echo_sample(z_mean, init = -5., d_max = 50, multiplicative = False, periodic = False):
-  
-  batch = z_mean.get_shape().as_list()[0] if not hasattr(z_mean, '_keras_shape') else K.int_shape(z_mean)[0] #K.cast(K.shape(z_mean)[0], K.floatx()) 
-  # td: if batch is problematic, make it a kwarg auto-filled in model...
-  latent_shape = z_mean.get_shape().as_list()[1:] if not hasattr(z_mean, '_keras_shape') else z_mean._keras_shape[1:]
-  init = tf.constant(init, shape=latent_shape, dtype=tf.float32)  # Init with very small noise
-  cap_param = tf.get_variable("capacity_parameter", initializer=init)
-  phi = tf.get_variable('phi', initializer=tf.constant(np.pi, shape=latent_shape, dtype=tf.float32))
-  c = tf.sigmoid(cap_param, name="e_cap")
-
-  print()
-  print("ECHO SAMPLE BATCH ")
+def echo_sample(args, init = -5., d_max = 50, multiplicative = False, periodic = False):
+  print("ARGS : ", args)
+  if isinstance(args, list):
+    z_mean = args[0] # only one stat argument to echo sample (mean, no variance)
+  else:
+    z_mean = args
+  print(" Z MEAN ", z_mean)
   def permute_neighbor_indices(batch_size, d_max=-1):
       """Produce an index tensor that gives a permuted matrix of other samples in batch, per sample.
       Parameters
@@ -62,7 +58,27 @@ def echo_sample(z_mean, init = -5., d_max = 50, multiplicative = False, periodic
           inds.append(list(enumerate(sub_batch[:d_max])))
       return inds
 
-  inds = permute_neighbor_indices(batch, d_max)
+  batch = z_mean.get_shape().as_list()[0] if not hasattr(z_mean, '_keras_shape') else K.int_shape(z_mean)[0] #K.cast(K.shape(z_mean)[0], K.floatx()) 
+  # td: if batch is problematic, make it a kwarg auto-filled in model...
+  with tf.variable_scope('encoder_noise', reuse=tf.AUTO_REUSE):
+    latent_shape = z_mean.get_shape().as_list()[1:] if not hasattr(z_mean, '_keras_shape') else z_mean._keras_shape[1:]
+    init = tf.constant(init, shape=latent_shape, dtype=tf.float32)  # Init with very small noise
+    cap_param = tf.get_variable("capacity_parameter", initializer=init)
+    phi = tf.get_variable('phi', initializer=tf.constant(np.pi, shape=latent_shape, dtype=tf.float32))
+    c = tf.sigmoid(cap_param, name="e_cap")
+
+  print()
+  print("ECHO SAMPLE BATCH ")
+  print("capacity: ", c.get_shape().as_list())
+  print("encoder: ", z_mean.get_shape().as_list())
+  
+
+  
+  if batch is not None:
+    inds = permute_neighbor_indices(batch, d_max)
+  else:
+    inds = list(range(d_max))
+
   inds = tf.constant(inds, dtype=tf.int32)
   if multiplicative: 
       normal_encoder = tf.log(z_mean + 1e-5) # noise calc done in log space
@@ -73,8 +89,9 @@ def echo_sample(z_mean, init = -5., d_max = 50, multiplicative = False, periodic
     c_z_stack = tf.stack([tf.cos(k * phi) * tf.pow(c, k) * normal_encoder for k in range(d_max)])
   else:
     c_z_stack = tf.stack([tf.pow(c, k) * normal_encoder for k in range(d_max)])  # no phase
-
-  noise = tf.gather_nd(c_z_stack, inds)
+  
+  noise = tf.gather(c_z_stack, inds, axis = 0)
+  #noise = tf.gather_nd(c_z_stack, inds)
   noise = tf.reduce_sum(noise, axis=1)  # Sums over d_max terms in sum
   noise -= tf.reduce_mean(noise, axis=0)  # Add constant so batch mean is zero
   if multiplicative:
