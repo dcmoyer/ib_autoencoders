@@ -34,15 +34,15 @@ def mmd_loss(inputs):
     return tf.reduce_mean(q_kernel) + tf.reduce_mean(p_kernel) - 2 * tf.reduce_mean(qp_kernel)
 
 def echo_loss(inputs): # what is required?  just D... can still have kwargs
+    print("INPUTS: ", inputs)
     cap_param = inputs[0]
-    min_capacity = -log(2**-23) / 10 # d_max ... don't have access to d_max
+    min_capacity = -np.log(2**-23) / 10 # d_max ... don't have access to d_max
     # compare to what Greg's implementation calculates for D, s.b. easy to verify
-    if len(inputs)==1:
-        #raise NotImplementedError
-        #capacities = tf.identity(tf.nn.softplus(-cap_param) - np.log(self.c_min), name='capacities')
-        capacities = tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
-        cap = tf.reduce_sum(capacities, name="capacity")
-        return cap
+
+    #capacities = tf.identity(tf.nn.softplus(-cap_param) - np.log(self.c_min), name='capacities')
+    capacities = tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
+    cap = tf.reduce_sum(capacities, name="capacity")
+    return tf.expand_dims(tf.expand_dims(cap,0), 1)
 
 def dim_sum(true, tensor):
     #print('DIMSUM TRUE ', _true)

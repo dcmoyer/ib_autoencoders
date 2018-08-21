@@ -63,7 +63,7 @@ class Loss(object):
         try:
             return self.from_layer, self.from_output
         except:
-            _ = self._type_to_function()    
+            _ = self._type_to_function()   # type to function sets from_layer/output to set inputs 
             return self.from_layer, self.from_output
 
     def get_loss_weight(self):
@@ -72,6 +72,7 @@ class Loss(object):
     def _type_to_function(self):
         name_suffix = '_'+str(self.layer) if self.layer != -1 else ('_z' if self.encoder else '_loss')
         print("SELF.TYPE ", self.type, type(self.type))
+        self.from_addl = []
         # *** RECON *** 
         if self.type in RECON_LOSSES:
             if 'iwae' in self.type:
@@ -162,6 +163,7 @@ class Loss(object):
                 raise NotImplementedError("only sampling and mixture of gaussian estimation of MI is supported.  other ideas?")
 
         elif "echo" in self.type:
+            self.from_layer = ['addl']
             return Lambda(l.echo_loss, arguments = self.loss_kwargs, name = 'mi_echo'+name_suffix)
 
         else:

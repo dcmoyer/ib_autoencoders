@@ -207,7 +207,7 @@ class NoiseModel(Model):
                 lossargs = self.losses[i]
                 if lossargs.get('encoder', True) and (lossargs.get('type') not in RECON_LOSSES and lossargs.get('add_loss') not in RECON_LOSSES): # loss defaults to encoder unless in recon
                     if 'encoder' not in lossargs:
-                        print("WARNING: Loss entry ", i, ": ",  lossargs.get('type', '') ," defaulting to encoder")
+                        warn("Loss entry ", i, ": ",  lossargs.get('type', '') ," defaulting to encoder")
 
                     self._enc_loss_ind.append(len(self.encoder_dims)-1 
                                                 if lossargs.get('layer', -1) == -1
@@ -377,28 +377,30 @@ class NoiseModel(Model):
 
             fn = loss.make_function()
             print('loss func *********', loss.type, loss.layer)
-            lyr_args, output_args = loss.describe_inputs()
+            inputs_layer, inputs_output = loss.describe_inputs()
             outputs = []
-            print('describe inputs', lyr_args, output_args)
+            print('describe inputs', inputs_layer, inputs_output)
             
-            for j in range(len(lyr_args)): # 'stat' or 'act'
+            for j in range(len(inputs_layer)): # 'stat' or 'act'
                 # enc / dec already done
                 layers = self.encoder_layers if enc else self.decoder_layers
                 lyr = loss.layer 
                  
                 #  'stat' or 'act' for enc/dec layer # lyr
-                if 'act' in lyr_args[j]:# == 'act':
+                if 'act' in inputs_layer[j] or 'addl' in inputs_layer[j]:# == 'act':
                     #if not loss.encoder and lyr in [-1, len(self.decoder_dims)-1]:
                     #    layers[lyr]['act'].insert(0, self.recon_true)
-                    outputs.extend(layers[lyr][lyr_args[j]])
-                elif 'stat' in lyr_args[j]:
-                    print('adding stat from ', layers[lyr], 'choosing lyr_arg', lyr_args[j])
-                    outputs.extend(layers[lyr][lyr_args[j]][0])
+                    outputs.extend(layers[lyr][inputs_layer[j]])
+                elif 'stat' in inputs_layer[j]:
+                    print('adding stat from ', layers[lyr], 'choosing lyr_arg', inputs_layer[j])
+                    outputs.extend(layers[lyr][inputs_layer[j]][0])
+                elif 'addl' in inputs_layer[j]:
+                    outputs.extend(layers[lyr][inputs_layer[j]])
             print('outputs for layer ', outputs)
-            for j in range(len(output_args)):
+            for j in range(len(inputs_output)):
                 layers = self.decoder_layers
                 lyr = loss.output
-                if 'act' in output_args[j]:# == 'act':
+                if 'act' in inputs_output[j]:# == 'act':
                     # all output activations get either recon_true or encoder activation (for corex)
                     if (lyr == -1): #[-1, len(self.decoder_dims)-1]):
                         recon_true = self.recon_true
@@ -409,12 +411,14 @@ class NoiseModel(Model):
                         else:
                             raise NotImplementedError("Cannot handle > 1 activation for intermediate layer reconstruction")
                     
-                    layers[lyr][output_args[j]].insert(0, recon_true)
-                    #print('act output', layers[lyr][output_args[j]])
-                    outputs.extend(layers[lyr][output_args[j]])
-                elif 'stat' in output_args[j]:
-                    #print('stat output', layers[lyr][output_args[j]])
-                    outputs.extend(layers[lyr][output_args[j]][0])
+                    layers[lyr][inputs_output[j]].insert(0, recon_true)
+                    #print('act output', layers[lyr][inputs_output[j]])
+                    outputs.extend(layers[lyr][inputs_output[j]])
+                elif 'stat' in inputs_output[j]:
+                    #print('stat output', layers[lyr][inputs_output[j]])
+                    outputs.extend(layers[lyr][inputs_output[j]][0])
+                # not handling 'addl' tensors
+
             print('outputs for layer ', outputs)
         
             self.model_outputs.append(fn(outputs))
@@ -530,6 +534,7 @@ class NoiseModel(Model):
             
             stat_k = functions['stat']
             act_k = functions['act']
+            addl_k = functions['addl']
 
             if stat_k:
                 current = current_call[0]
@@ -558,6 +563,14 @@ class NoiseModel(Model):
                 print("CURRENT (i.e. prev layer) ", current, current_call)
                 a = act_lyr(current)
                 layers_list[layer_ind]['act'].append(a)
+
+            for k in range(len(addl_k)):
+                addl_lyr = addl_k[k]
+                if isinstance(current_call, list):
+                    current = current_call[k] if len(current_call) > 1 else current_call[0]
+                
+                a = addl_lyr(current)
+                layers_list[layer_ind]['addl'].append(a)
 
                 #for new, prev in zip(act_lyr, current_call):
                 #layers_list[layer_ind]['act'].append(act_lyr(current))

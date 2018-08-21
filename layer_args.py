@@ -39,7 +39,7 @@ class Layer(object):
     def make_function_list(self, index = 0):
         stats_list = []
         act_list = []
-        addl_tensors = []
+        addl_list = []
         #latent_dim = latent_dim if latent_dim is not None else self.latent_dim
 
         if self.type == 'echo' and not self.layer_kwargs.get('d_max', False) and self.k != 1:
@@ -75,10 +75,12 @@ class Layer(object):
                     # slightly different here... layer_kwargs used for echo / lambda
                     z_mean = Dense(self.latent_dim, activation='linear', name='z_mean'+name_suffix)# **self.layer_kwargs)
                     z_act = Lambda(layers.echo_sample, name = 'z_act_'+name_suffix, arguments = self.layer_kwargs)
+                    capacity = Lambda(layers.echo_capacity, name = 'cap_param'+name_suffix, arguments = {'init': self.layer_kwargs['init']})
                 # note: k = 1 if k used as d_max, otherwise will have k separate layer calls
+                # tf.get_variable  self.layer_kwargs['init']
                 stats_list.append([z_mean])
                 act_list.append(z_act)
-
+                addl_list.append(capacity)
             else:
                 # import layer module by string (can be specified either in activation or layer_kwargs)
                 try:
@@ -118,7 +120,7 @@ class Layer(object):
                     raise AttributeError("Cannot import layer module.  Set 'type' to 'add', 'mul', or import path.")
                 act_list.append(z_act)
        
-        return {'stat': stats_list, 'act': act_list}
+        return {'stat': stats_list, 'act': act_list, 'addl': addl_list}
             # if stats_list:
             #     return [stats_list, act_list]
             # else:

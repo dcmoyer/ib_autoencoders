@@ -15,7 +15,7 @@
 			"k": 1,
 			"layer_kwargs": {
 				"d_max": 25,
-				"init": -4
+				"init": -5
 				}
 			}
 		], 
@@ -26,7 +26,15 @@
 		},
 	"output_activation" : "sigmoid",
 	"recon": "bce", 
-	"losses":[],
+	"losses":
+		[
+			{
+			"type": "echo",
+			"layer": -1, 
+			"encoder": true,
+			"weight": 1
+			}
+		],
 	"beta": 1.0, 
 	"anneal_schedule": null, 
 	"anneal_function": null
