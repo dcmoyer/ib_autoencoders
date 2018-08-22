@@ -305,7 +305,7 @@ class NoiseModel(Model):
         self.hist = self.model.fit(x_train, ([x_train] if y_train is None else [y_train])*len(self.model_outputs), 
                            epochs = self.epochs, batch_size = self.batch, callbacks = callbacks)
         # how to get activation layers?
-        examples = x_train[0:10]
+        examples = x_train[:self.batch]
         z = self._encoder(x = examples)
         
         #means = K.mean(z, axis = 0)
@@ -506,6 +506,10 @@ class NoiseModel(Model):
                     self.layers[arg_ind]['latent_dim'] = dims[layer_ind]
                 print("ADDING DIM ", dims[layer_ind], layer_ind, ind_latent)
                 print(self.layers[arg_ind])
+
+                if "echo" in self.layers[arg_ind]['type']:
+                    self.layers[arg_ind]['layer_kwargs']['batch'] = self.batch 
+                
                 layer = layer_args.Layer(** self.layers[arg_ind])
             else:
                 # default Dense layer
@@ -565,12 +569,19 @@ class NoiseModel(Model):
                 layers_list[layer_ind]['act'].append(a)
 
             for k in range(len(addl_k)):
+                print()
+                print("echo capacity layer:")
+                print("CURRENT (i.e. prev layer) ", current, current_call)
                 addl_lyr = addl_k[k]
+                print("addl_lyr")
                 if isinstance(current_call, list):
+                    print("current is a list")
                     current = current_call[k] if len(current_call) > 1 else current_call[0]
-                
+                print("calling")
                 a = addl_lyr(current)
+                print("done calling")
                 layers_list[layer_ind]['addl'].append(a)
+                print("appended")
 
                 #for new, prev in zip(act_lyr, current_call):
                 #layers_list[layer_ind]['act'].append(act_lyr(current))

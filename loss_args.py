@@ -166,6 +166,12 @@ class Loss(object):
             self.from_layer = ['addl']
             return Lambda(l.echo_loss, arguments = self.loss_kwargs, name = 'mi_echo'+name_suffix)
 
+
+        elif self.type == 'mmd':
+            self.from_layer = ['act']
+            self.from_output = [] if (self.method == 'prior' or self.method == 'mixture') else ['act']
+            return Lambda(l.mmd_loss, arguments = self.loss_kwargs, name = 'mmd'+name_suffix)
+
         else:
             # TRY IMPORT OF FUNCTION FROM LOSSES
             try:

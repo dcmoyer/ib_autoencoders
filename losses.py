@@ -27,20 +27,24 @@ def compute_kernel(x, y):
 
 
 def mmd_loss(inputs):
-    q, p = inputs
+    if len(inputs) == 1:
+        q = inputs[0]
+        p = tf.random_normal(q.shape)
+    else:
+        q, p = inputs
     q_kernel = compute_kernel(q, q)
     p_kernel = compute_kernel(p, p)
     qp_kernel = compute_kernel(q, p)
     return tf.reduce_mean(q_kernel) + tf.reduce_mean(p_kernel) - 2 * tf.reduce_mean(qp_kernel)
 
-def echo_loss(inputs): # what is required?  just D... can still have kwargs
+def echo_loss(inputs, d_max = 50):
     print("INPUTS: ", inputs)
     cap_param = inputs[0]
-    min_capacity = -np.log(2**-23) / 10 # d_max ... don't have access to d_max
+    min_capacity = 16.0 / d_max # d_max ... don't have access to d_max to actually pass
     # compare to what Greg's implementation calculates for D, s.b. easy to verify
 
     #capacities = tf.identity(tf.nn.softplus(-cap_param) - np.log(self.c_min), name='capacities')
-    capacities = tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
+    capacities = tf.identity(tf.nn.softplus(- cap_param), name='capacities') #tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
     cap = tf.reduce_sum(capacities, name="capacity")
     return tf.expand_dims(tf.expand_dims(cap,0), 1)
 

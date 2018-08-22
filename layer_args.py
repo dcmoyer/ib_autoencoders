@@ -75,7 +75,7 @@ class Layer(object):
                     # slightly different here... layer_kwargs used for echo / lambda
                     z_mean = Dense(self.latent_dim, activation='linear', name='z_mean'+name_suffix)# **self.layer_kwargs)
                     z_act = Lambda(layers.echo_sample, name = 'z_act_'+name_suffix, arguments = self.layer_kwargs)
-                    capacity = Lambda(layers.echo_capacity, name = 'cap_param'+name_suffix, arguments = {'init': self.layer_kwargs['init']})
+                    capacity = Lambda(layers.echo_capacity, name = 'capacity'+name_suffix, arguments = {'init': self.layer_kwargs['init']})
                 # note: k = 1 if k used as d_max, otherwise will have k separate layer calls
                 # tf.get_variable  self.layer_kwargs['init']
                 stats_list.append([z_mean])
