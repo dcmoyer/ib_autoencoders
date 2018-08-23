@@ -32,6 +32,8 @@ class Loss(object):
             'corex_beta': 1,
             'output': -1, # output is data layer (e.g. hierarchical corex may specify index in decoder as other layer)
             'method': 'mixture',
+            'constraint': 'equal',
+            'target': 0.0,
             'recon': None,
             'from_layer': [], # "stats", "recon", in order of list (stats = z_mean, z_var ... recon = x_true, x_pred)
             'from_output': [], 

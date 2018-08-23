@@ -26,8 +26,13 @@ def compute_kernel(x, y):
     return tf.exp(-tf.reduce_mean(tf.square(tiled_x - tiled_y), axis=2) / tf.cast(dim, tf.float32))
 
 
-def mmd_loss(inputs):
-    if len(inputs) == 1:
+def mmd_loss(inputs, gaussian = True):
+    print("INPUTS: ", inputs)
+    print("mmd ")
+    if not isinstance(inputs, list):
+        q = inputs
+        p = tf.random_normal(q.shape)
+    elif len(inputs) == 1:
         q = inputs[0]
         p = tf.random_normal(q.shape)
     else:
@@ -35,7 +40,8 @@ def mmd_loss(inputs):
     q_kernel = compute_kernel(q, q)
     p_kernel = compute_kernel(p, p)
     qp_kernel = compute_kernel(q, p)
-    return tf.reduce_mean(q_kernel) + tf.reduce_mean(p_kernel) - 2 * tf.reduce_mean(qp_kernel)
+    mmd = tf.reduce_mean(q_kernel) + tf.reduce_mean(p_kernel) - 2 * tf.reduce_mean(qp_kernel)
+    return tf.expand_dims(tf.expand_dims(mmd, 0), 1)
 
 def echo_loss(inputs, d_max = 50):
     print("INPUTS: ", inputs)

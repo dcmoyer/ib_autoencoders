@@ -18,6 +18,7 @@ from loss_args import Loss
 import dataset
 import losses as l
 import analysis
+import pickle
 
 K.set_image_dim_ordering('tf')
 RECON_LOSSES = ['bce', 'mse', 'binary_crossentropy', 'mean_square_error', 'mean_squared_error', 'iwae']
@@ -44,12 +45,12 @@ class WrapModel(Model):
 
 
 class NoiseModel(Model):
-    def __init__(self, dataset, args_dict = {}, config = None, dflt = {}):
+    def __init__(self, dataset, args_dict = {}, config = None, filename = 'model_stats'):
         # dflt as dictionary (set by session)
         #if dflt is None:
         #   args = utils.load_from_config('configs/dflt.json')
         # All failed dictionary reads first check default config, then fall back to given value
-
+        self.filename = filename
         self.args = {
             'dataset': 'mnist', # specify + import dataset class
             'epochs': 100,
@@ -69,6 +70,7 @@ class NoiseModel(Model):
             'recon': None,
             #'recon_layers': None,
             'losses': None,
+            'lagrangian_fit': False,
             'beta': 1.0,
             'anneal_schedule': None,
             'anneal_function': None,
@@ -301,9 +303,17 @@ class NoiseModel(Model):
                 pass
         print('outputs ', self.model_outputs)
         print('losses ', self.model_losses)
+        
         self.model.compile(optimizer = self.optimizer, loss = self.model_losses, loss_weights = self.model_loss_weights) # metrics?
-        self.hist = self.model.fit(x_train, ([x_train] if y_train is None else [y_train])*len(self.model_outputs), 
-                           epochs = self.epochs, batch_size = self.batch, callbacks = callbacks)
+        
+        print(self.lagrangian_fit)
+        if not self.lagrangian_fit:
+            self.hist = self.model.fit(x_train, ([x_train] if y_train is None else [y_train])*len(self.model_outputs), 
+                               epochs = self.epochs, batch_size = self.batch, callbacks = callbacks)
+        else:
+            self.lagrangian_optimization()
+
+
         # how to get activation layers?
         examples = x_train[:self.batch]
         z = self._encoder(x = examples)
@@ -319,6 +329,16 @@ class NoiseModel(Model):
                         #sigs = sigs)
 
         #tf_mod(kz, x_out, sess), top = latent_dims[-1], prefix = os.path.join(os.path.dirname(os.path.realpath(__file__)), log_path, '_'), z_act = z_acts, means= means, sigmas = sigs, imgs = p)
+    def pickle():
+        fle = open(self.filename, "wb")
+        stats = {}
+        #stats['mi'] = model.mi
+        #stats['tc'] = model.tc
+        for k in self.hist.history.keys():
+            #if 'screening' in k or 'info_dropout' in k or 'vae' in k or 'noise_loss' in k:
+            stats[k] = model.hist.history[k]
+
+        pickle.dump(stats, fle)
 
     def _encoder(self, x = None):
         for i in self.model.layers:
@@ -360,6 +380,9 @@ class NoiseModel(Model):
             print('loss type ', self.losses[i])
             #print(vars(self.losses[i]))
             loss = Loss(**self.losses[i]) if isinstance(self.losses[i], dict) else self.losses[i]
+            
+            #if loss.constraint is not None:
+            #    self.lagrangian_fit = True
 
             enc = loss.encoder
             #inds = self._enc_loss_ind if enc  else self._dec_loss_ind
@@ -394,8 +417,6 @@ class NoiseModel(Model):
                 elif 'stat' in inputs_layer[j]:
                     print('adding stat from ', layers[lyr], 'choosing lyr_arg', inputs_layer[j])
                     outputs.extend(layers[lyr][inputs_layer[j]][0])
-                elif 'addl' in inputs_layer[j]:
-                    outputs.extend(layers[lyr][inputs_layer[j]])
             print('outputs for layer ', outputs)
             for j in range(len(inputs_output)):
                 layers = self.decoder_layers
@@ -613,6 +634,10 @@ class NoiseModel(Model):
             #return self.encoder_layers
             
         return layers_list
+
+
+    def lagrangian_optimization(self):
+        pass
 
     def get_generator(self):
         pass
