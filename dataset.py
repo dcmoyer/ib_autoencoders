@@ -11,6 +11,8 @@ class Dataset(ABC):
     def get_data(self):
         pass
 
+    #def num_samples(self):
+
 class DatasetWrap(Dataset):
     def __init__(self, x_train, x_val = None, y_train = None, y_val = None, x_test = None, y_test = None, dim1 = None, dim2 = None):
         self.x_train = x_train

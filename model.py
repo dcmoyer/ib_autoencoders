@@ -70,6 +70,7 @@ class NoiseModel(Model):
             'recon': None,
             #'recon_layers': None,
             'losses': None,
+            'constraints': None,
             'lagrangian_fit': False,
             'beta': 1.0,
             'anneal_schedule': None,
@@ -188,6 +189,8 @@ class NoiseModel(Model):
         #self.anneal_function = args.get('anneal_function', dflt.get('anneal_function', None))
         self.anneal = (self.anneal_schedule is not None or self.anneal_function is not None)
 
+        self.lagrangian_fit = self.constraints or self.constraints is not None
+        
         if isinstance(self.recon, list):
             self.recon = str(self.recon[0])
 
@@ -282,19 +285,20 @@ class NoiseModel(Model):
                                 })
                 self.losses.append(recon_loss)
 
+    # TO DO : MAKE FIT AUTOMATICALLY READ DATASET
     def fit(self, x_train, y_train = None, x_val = None, y_val = None):
-        x = Input(shape = (self.dataset.dim,)) if self.input_shape is None else Input(shape = self.input_shape) 
-        self.recon_true = x# Lambda(lambda y : y, name = 'x_true')(x)
-        print('INPUT SHAPE ', self.input_shape, ' x shape ', x, self.input_shape.insert(-1, 0) if self.input_shape is not None else '')
+        self.input_tensor = Input(shape = (self.dataset.dim,)) if self.input_shape is None else Input(shape = self.input_shape) 
+        self.recon_true = self.input_tensor # Lambda(lambda y : y, name = 'x_true')(x)
+        print('INPUT SHAPE ', self.input_shape, ' x shape ', self.input_tensor, self.input_shape.insert(-1, 0) if self.input_shape is not None else '')
         print("***********************         ENCODER          *****************************")
-        self.encoder_layers = self._build_architecture([x], encoder = True)
+        self.encoder_layers = self._build_architecture([self.input_tensor], encoder = True)
         print("***********************         DECODER          *****************************")
         self.decoder_layers = self._build_architecture(self.encoder_layers[len(self.encoder_layers)-1]['act'], encoder = False)
         self.model_outputs, self.model_losses, self.model_loss_weights = self._make_losses()
         callbacks = self._make_callbacks()
         print(self.model_outputs)
         print([type(o) for o in self.model_outputs])
-        self.model = keras.models.Model(inputs = x, outputs = self.model_outputs)
+        self.model = keras.models.Model(inputs = self.input_tensor, outputs = self.model_outputs)
         print(self.model.summary())
         for i in self.model.layers[1:]:
             try:
@@ -311,13 +315,28 @@ class NoiseModel(Model):
             self.hist = self.model.fit(x_train, ([x_train] if y_train is None else [y_train])*len(self.model_outputs), 
                                epochs = self.epochs, batch_size = self.batch, callbacks = callbacks)
         else:
-            self.lagrangian_optimization()
+            self.lagrangian_optimization(x_train, y_train, x_val, y_val)
 
 
+
+
+        def pickle_dump():
+            fle = open(self.filename, "wb")
+            stats = {}
+            #stats['mi'] = model.mi
+            #stats['tc'] = model.tc
+            for k in self.hist.history.keys():
+                #if 'screening' in k or 'info_dropout' in k or 'vae' in k or 'noise_loss' in k:
+                stats[k] = self.hist.history[k]
+
+            pickle.dump(stats, fle)
+        
+        pickle_dump()
         # how to get activation layers?
         examples = x_train[:self.batch]
         z = self._encoder(x = examples)
         
+
         #means = K.mean(z, axis = 0)
         #sigs = K.sqrt(K.var(z, axis = 0))
         analysis.plot_traversals(examples, 
@@ -329,16 +348,7 @@ class NoiseModel(Model):
                         #sigs = sigs)
 
         #tf_mod(kz, x_out, sess), top = latent_dims[-1], prefix = os.path.join(os.path.dirname(os.path.realpath(__file__)), log_path, '_'), z_act = z_acts, means= means, sigmas = sigs, imgs = p)
-    def pickle():
-        fle = open(self.filename, "wb")
-        stats = {}
-        #stats['mi'] = model.mi
-        #stats['tc'] = model.tc
-        for k in self.hist.history.keys():
-            #if 'screening' in k or 'info_dropout' in k or 'vae' in k or 'noise_loss' in k:
-            stats[k] = model.hist.history[k]
 
-        pickle.dump(stats, fle)
 
     def _encoder(self, x = None):
         for i in self.model.layers:
@@ -381,6 +391,7 @@ class NoiseModel(Model):
             #print(vars(self.losses[i]))
             loss = Loss(**self.losses[i]) if isinstance(self.losses[i], dict) else self.losses[i]
             
+            print("Loss constraint value: ", loss.constraint)
             #if loss.constraint is not None:
             #    self.lagrangian_fit = True
 
@@ -636,8 +647,55 @@ class NoiseModel(Model):
         return layers_list
 
 
-    def lagrangian_optimization(self):
-        pass
+    def lagrangian_optimization(self, x_train, y_train = None, x_val = None, y_val = None, init = 1.0):
+        lagrangians = []
+        lagr_vars = []
+        for i in range(len(self.constraints)):
+            constraint = self.constraints[i]
+            multiplier = tf.Variable(init, name = "lagr_"+str(i)) if constraint['relation'] == 'equal' or 'less' in constraint['relation'] else tf.Variable(init*-1, name = "lagr_"+str(i))
+            loss_tensor = self.model_losses[constraint['loss']]
+            
+            lagrangians.append(multiplier*(loss_tensor - tf.Variable(constraint['value'], trainable = False))) #= multiplier*(l.dimsum(loss_tensor) - constraint['value'])
+            lagr_vars.append(multiplier)
+
+        lagrangian_loss = tf.add_n(lagrangians) 
+        total_loss = tf.add_n([self.model_loss_weights[i]*self.model_losses[i] for i in len(self.model_losses)]) + lagrangian_loss
+            # all other parts of objective... 
+        other_vars = [v for v in tf.global_variables() if "lagr" not in v.name]
+
+        trainer = tf.train.AdamOptimizer(self.lr).minimize(total_loss, var_list=other_vars)
+        lagrangian_trainer = tf.train.GradientDescentOptimizer(1.00).minimize(-lagrangian_loss, var_list=lagr_vars)
+        
+        n_samples = x_train.shape[0]
+        # 
+        with self.sess.as_default():
+            tf.global_variables_initializer().run()
+            for i in range(self.epochs):  # Outer training loop
+                perm = np.random.permutation(n_samples)  # random permutation of data for each epoch
+                t0 = time.time()
+                for offset in range(0, (int(n_samples / self.batch) * self.batch), self.batch):  # inner
+                    batch_data = load_data(data, perm[offset:(offset + self.batch_size)])
+                    result = self.sess.run([train_step, summary_train, self.loss],
+                                           feed_dict={self.input_tensor: batch_data})
+                    summary, loss = result[1], result[2]
+                writer.add_summary(summary, i)
+                if x_val is not None:
+                    assert len(x_val) == self.batch, "Must compare with batches of equal size"
+                    x_val = load_data(x_val)
+                    summary, val_loss = sess.run([summary_val, self.loss],
+                                                      feed_dict={self.input_tensor: x_val})
+                    writer.add_summary(summary, i)
+                else:
+                    val_loss = np.nan
+                #if self.verbose:
+                    #t = time.time()
+                    #print('{}/{}, Loss:{:0.3f}, Val:{:0.3f}, Seconds: {:0.1f}'.
+                    #      format(i, self.epochs, loss, val_loss, t - t0))
+                    #if i % 1000 == 999:
+                        #print('Saving at {} into {}'.format(i, self.log_dir))
+                        #saver.save(sess, os.path.join(self.log_dir, "model_{}.ckpt".format(i)))
+
+
 
     def get_generator(self):
         pass

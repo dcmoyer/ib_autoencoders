@@ -1,6 +1,6 @@
 {
 	"epochs": 5,
-	"batch": 100,
+	"batch": 200,
 	"optimizer": "Adam",
 	"optimizer_params": {}, 
 	"lr": 0.001,

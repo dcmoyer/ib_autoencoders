@@ -87,6 +87,7 @@ def echo_sample(args, init = -5., d_max = 50, batch = 100, multiplicative = Fals
     latent_shape = z_mean.get_shape().as_list()[1:] if not hasattr(z_mean, '_keras_shape') else z_mean._keras_shape[1:]
     init = tf.constant(init, shape=latent_shape, dtype=tf.float32)  # Init with very small noise
     cap_param = tf.get_variable("capacity_parameter", initializer=init)
+    tf.Session().run(cap_param.initializer)
     phi = tf.get_variable('phi', initializer=tf.constant(np.pi, shape=latent_shape, dtype=tf.float32))
     c = tf.sigmoid(cap_param, name="e_cap")
 
@@ -123,6 +124,7 @@ def echo_sample(args, init = -5., d_max = 50, batch = 100, multiplicative = Fals
     noise = tf.reduce_sum(noise, axis=1)  # Sums over d_max terms in sum
     noise -= tf.reduce_mean(noise, axis=0)  # Add constant so batch mean is zero
     print("Final noise tensor ", noise.shape, " z mean ", z_mean.shape)
+
     if multiplicative:
         noisy_encoder = z_mean * tf.exp(c * noise)
     else:
