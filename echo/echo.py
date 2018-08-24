@@ -122,7 +122,7 @@ class Echo(object):
                 print("inds ", len(inds), " , each of len ", len(inds[1]))
                 inds = tf.constant(inds, dtype=tf.int32)
                 if self.multiplicative:
-                    normal_encoder = tf.log(encoder + 1e-5)
+                    normal_encoder = encoder #tf.log(encoder + 1e-5)
                 else:
                     normal_encoder = encoder
                 c_z_stack = tf.stack([tf.cos(k * phi) * tf.pow(c, k) * normal_encoder for k in range(self.d_max)])

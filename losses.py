@@ -67,6 +67,12 @@ def dim_sum_one(tensor):
 def identity(true, tensor):
     return tensor
 
+def loss_val(tensor):
+    return K.mean(K.sum(tensor, axis = -1), axis = 0)
+
+def sum_all(tensor):
+    return K.sum(tensor)
+
 
 def logsumexp(x, axis = -1, keepdims = False):
     #return tf.reduce_logsumexp(mx, axis = axis)

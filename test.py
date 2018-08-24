@@ -11,10 +11,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, default='test_config.json')
 parser.add_argument('--echo_init', type=float)
 parser.add_argument('--noise', type=str)
+parser.add_argument('--constraint', type=float)
 args, _ = parser.parse_known_args()
 
 print("ECHO INIT ", args.echo_init)
 print("NOISE ", args.noise)
+print("Constraint ", args.constraint)
 
 d = dataset.MNIST(binary= True)
 #i = Input(shape = (d.x_train.shape[-1],))
@@ -26,7 +28,7 @@ d = dataset.MNIST(binary= True)
 
 init_str = str(args.echo_init if args.echo_init is not None else "")
 noise_str = str(args.noise if args.noise is not None else "")
-fn = str("echo"+init_str+noise_str)
+fn = str("echo"+init_str+noise_str+"_")
 
 m = model.NoiseModel(d, config = 'test_config.json', filename = fn)
 
@@ -38,5 +40,7 @@ if args.noise is not None:
 		m.layers[0]['layer_kwargs']['multiplicative'] = True
 	if args.noise == 'additive':
 		m.layers[0]['layer_kwargs']['multiplicative'] = False
-
+if args.constraint is not None:
+	m.constraints[0]['value'] = args.constraint
+	
 m.fit(d.x_train)

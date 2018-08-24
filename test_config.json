@@ -1,5 +1,5 @@
 {
-	"epochs": 5,
+	"epochs": 500,
 	"batch": 200,
 	"optimizer": "Adam",
 	"optimizer_params": {}, 
@@ -10,12 +10,8 @@
 		[{
 			"layer": -1, 
 			"encoder": true,
-			"type": "echo",	
-			"k": 1,
-			"layer_kwargs": {
-				"d_max": 50,
-				"init": 1
-				}
+			"type": "add",	
+			"k": 1
 		}], 
 	"initializer": "zero",
 	"activation": {  
@@ -27,12 +23,20 @@
 	"losses":
 		[
 			{
-			"type": "echo",
+			"type": "vae",
 			"layer": -1, 
 			"encoder": true,
 			"weight": 1
 			}
 		], 
+	"constraints":
+		[
+			{
+			"loss": 0,
+			"relation": "equal",
+			"value": 5.0
+			}	
+		],
 	"beta": 1.0,
 	"anneal_schedule": null, 
 	"anneal_function": null

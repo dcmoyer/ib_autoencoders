@@ -5,4 +5,4 @@
 
 cd /home/rcf-proj/gv/brekelma/autoencoders
 
-python3 test.py --echo_init $ECHO --noise 'multiplicative'
+python3 test.py --constraint $ECHO

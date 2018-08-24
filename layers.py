@@ -51,7 +51,7 @@ def echo_capacity(args, init = -5, batch = 100):
     #c = tf.sigmoid(cap_param, name="e_cap")
     return cap_param
 
-def echo_sample(args, init = -5., d_max = 50, batch = 100, multiplicative = False, periodic = False):
+def echo_sample(args, init = -5., d_max = 50, batch = 100, multiplicative = False, trainable = False, periodic = False):
   print()
   print("ARGS echo sample : ", args)
   print("init ", init, " dmax ", d_max)
@@ -86,7 +86,7 @@ def echo_sample(args, init = -5., d_max = 50, batch = 100, multiplicative = Fals
   with tf.variable_scope('encoder_noise', reuse=tf.AUTO_REUSE):
     latent_shape = z_mean.get_shape().as_list()[1:] if not hasattr(z_mean, '_keras_shape') else z_mean._keras_shape[1:]
     init = tf.constant(init, shape=latent_shape, dtype=tf.float32)  # Init with very small noise
-    cap_param = tf.get_variable("capacity_parameter", initializer=init)
+    cap_param = tf.get_variable("capacity_parameter", initializer=init, trainable = trainable)
     tf.Session().run(cap_param.initializer)
     phi = tf.get_variable('phi', initializer=tf.constant(np.pi, shape=latent_shape, dtype=tf.float32))
     c = tf.sigmoid(cap_param, name="e_cap")
@@ -104,8 +104,8 @@ def echo_sample(args, init = -5., d_max = 50, batch = 100, multiplicative = Fals
     #  inds = [list(range(d_max))]
     print("inds : ", len(inds), " , each len ", len(inds[0]))
     inds = tf.constant(inds, dtype=tf.int32)
-    if multiplicative: 
-        normal_encoder = tf.log(z_mean + 1e-5) # noise calc done in log space
+    if multiplicative:
+        normal_encoder = z_mean #tf.log(z_mean + 1e-5) # noise calc done in log space
     else:
         normal_encoder = z_mean
 

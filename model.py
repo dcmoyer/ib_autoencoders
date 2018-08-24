@@ -312,26 +312,14 @@ class NoiseModel(Model):
         
         print(self.lagrangian_fit)
         if not self.lagrangian_fit:
-            self.hist = self.model.fit(x_train, ([x_train] if y_train is None else [y_train])*len(self.model_outputs), 
+            hist = self.model.fit(x_train, ([x_train] if y_train is None else [y_train])*len(self.model_outputs), 
                                epochs = self.epochs, batch_size = self.batch, callbacks = callbacks)
+            self.hist= hist.history
         else:
             self.lagrangian_optimization(x_train, y_train, x_val, y_val)
 
-
-
-
-        def pickle_dump():
-            fle = open(self.filename, "wb")
-            stats = {}
-            #stats['mi'] = model.mi
-            #stats['tc'] = model.tc
-            for k in self.hist.history.keys():
-                #if 'screening' in k or 'info_dropout' in k or 'vae' in k or 'noise_loss' in k:
-                stats[k] = self.hist.history[k]
-
-            pickle.dump(stats, fle)
         
-        pickle_dump()
+        self.pickle_dump()
         # how to get activation layers?
         examples = x_train[:self.batch]
         z = self._encoder(x = examples)
@@ -647,46 +635,92 @@ class NoiseModel(Model):
         return layers_list
 
 
-    def lagrangian_optimization(self, x_train, y_train = None, x_val = None, y_val = None, init = 1.0):
+    def lagrangian_optimization(self, x_train, y_train = None, x_val = None, y_val = None, 
+                    init = 1.0, min_lagr = .001, max_lagr = 100.0):
         lagrangians = []
         lagr_vars = []
         for i in range(len(self.constraints)):
             constraint = self.constraints[i]
-            multiplier = tf.Variable(init, name = "lagr_"+str(i)) if constraint['relation'] == 'equal' or 'less' in constraint['relation'] else tf.Variable(init*-1, name = "lagr_"+str(i))
-            loss_tensor = self.model_losses[constraint['loss']]
+            sign = -1 if 'geq' in constraint['relation'] or 'greater' in constraint['relation'] else 1
+            multiplier = tf.get_variable("lagr_"+str(i), initializer = init*sign)#, name = ) 
+            print("Model Output Tensors: ", self.model.outputs)
+            loss_tensor = self.model.outputs[constraint['loss']] #_losses[constraint['loss']]
             
-            lagrangians.append(multiplier*(loss_tensor - tf.Variable(constraint['value'], trainable = False))) #= multiplier*(l.dimsum(loss_tensor) - constraint['value'])
+            print("Constraint value: ", constraint['value'])
+            print(sign)
+            lagrangians.append(multiplier*(l.loss_val(loss_tensor) - tf.Variable(constraint['value'], trainable = False))) #= multiplier*(l.dimsum(loss_tensor) - constraint['value'])
             lagr_vars.append(multiplier)
 
         lagrangian_loss = tf.add_n(lagrangians) 
-        total_loss = tf.add_n([self.model_loss_weights[i]*self.model_losses[i] for i in len(self.model_losses)]) + lagrangian_loss
+        total_loss = tf.add_n([self.model_loss_weights[i]*l.loss_val(self.model.outputs[i]) for i in range(len(self.model.outputs)) if i != constraint['loss']]) + lagrangian_loss
             # all other parts of objective... 
-        other_vars = [v for v in tf.global_variables() if "lagr" not in v.name]
+        other_vars = [v for v in tf.trainable_variables() if "lagr" not in v.name]
 
         trainer = tf.train.AdamOptimizer(self.lr).minimize(total_loss, var_list=other_vars)
-        lagrangian_trainer = tf.train.GradientDescentOptimizer(1.00).minimize(-lagrangian_loss, var_list=lagr_vars)
+        lagrangian_trainer = tf.train.GradientDescentOptimizer(.1).minimize(-lagrangian_loss, var_list=lagr_vars)
         
+        lagr_clip = tf.assign(lagr_vars[0], sign*tf.minimum(tf.maximum(lagr_vars[0], min_lagr), max_lagr))
+        #
+        #tf.group( )
+         #   *[tf.assign(lagr, tf.minimum(tf.maximum(lagr, min_lagr), max_lagr)) for lagr in lagr_vars])
+            #[tf.assign(self.l1, tf.minimum(tf.maximum(self.l1, 0.001), 100.0)),
+            #tf.assign(self.l2, tf.minimum(tf.maximum(self.l2, 0.001), 100.0))
+        #)
+
         n_samples = x_train.shape[0]
-        # 
+        print(n_samples)
+        self.sess = tf.Session()
+        self.hist = defaultdict(list)
         with self.sess.as_default():
             tf.global_variables_initializer().run()
             for i in range(self.epochs):  # Outer training loop
+                epoch_avg = defaultdict(list)
+                #total_avg = []
+                #lagr_avg = []
+                lm_avg = []
                 perm = np.random.permutation(n_samples)  # random permutation of data for each epoch
-                t0 = time.time()
+                
                 for offset in range(0, (int(n_samples / self.batch) * self.batch), self.batch):  # inner
-                    batch_data = load_data(data, perm[offset:(offset + self.batch_size)])
-                    result = self.sess.run([train_step, summary_train, self.loss],
+                    batch_data = x_train[perm[offset:(offset + self.batch)]]
+                    result = self.sess.run([trainer, lagrangian_trainer],
                                            feed_dict={self.input_tensor: batch_data})
-                    summary, loss = result[1], result[2]
-                writer.add_summary(summary, i)
-                if x_val is not None:
-                    assert len(x_val) == self.batch, "Must compare with batches of equal size"
-                    x_val = load_data(x_val)
-                    summary, val_loss = sess.run([summary_val, self.loss],
-                                                      feed_dict={self.input_tensor: x_val})
-                    writer.add_summary(summary, i)
-                else:
-                    val_loss = np.nan
+                    self.sess.run(lagr_clip)
+                    #for j in range(len(lagr_vars)):
+                    #    tf.clip_by_value(lagr_vars[j], min_lagr, max_lagr)
+                    # every epoch record loss
+                    for loss_layer in self.model.outputs:
+                        # SLOW?  fix recording
+                        batch_loss = self.sess.run(loss_layer, feed_dict={self.input_tensor: batch_data})
+                        epoch_avg[loss_layer.name].append(np.mean(np.sum(batch_loss, axis = -1), axis = 0))
+                    #total_avg.append(self.sess.run(total_loss, feed_dict = {self.input_tensor: batch_data}))
+                    #lagr_avg.append(self.sess.run(lagrangian_loss, feed_dict = {self.input_tensor:batch_data}))
+                    lm_avg.append(self.sess.run(multiplier))
+                #print("Epoch ", str(i), ": ", end ="")
+                for loss_layer in self.model.outputs:
+                    #epoch_loss = np.sum(epoch_avg[loss_layer.name])
+                    epoch_loss = np.mean(epoch_avg[loss_layer.name])  
+                    self.hist[loss_layer.name].append(epoch_loss)
+                    #print(loss_layer.name.split("/")[0], " : ", epoch_loss, " \t ", end="")
+                for i in range(len(lagr_vars)):
+                    self.hist[lagr_vars[i].name].append(lm_avg)
+                #print("Lagr mult for loss ", i, ": ", np.mean(lm_avg), "\t ", end="")
+                #print(" Lagr Loss : ", np.mean(lagr_avg), " \t", end ="")
+                #print(" Total Loss : ", np.mean(total_avg), " \t", end ="")
+                #print()
+        #Callbacks?
+
+                #summary, loss = result[1], result[2]
+                #writer.add_summary(summary, i)
+
+                # if x_val is not None:
+                #     assert len(x_val) == self.batch, "Must compare with batches of equal size"
+                #     x_val = load_data(x_val)
+                #     summary, val_loss = sess.run([summary_val, self.loss],
+                #                                       feed_dict={self.input_tensor: x_val})
+                #     writer.add_summary(summary, i)
+                # else:
+                #     val_loss = np.nan
+
                 #if self.verbose:
                     #t = time.time()
                     #print('{}/{}, Loss:{:0.3f}, Val:{:0.3f}, Seconds: {:0.1f}'.
@@ -731,3 +765,14 @@ class NoiseModel(Model):
 
     def save_weights(self, filename):
         model.save_weights(filename, overwrite=True)
+
+    def pickle_dump(self):
+        fle = open(str(self.filename+".pickle"), "wb")
+        stats = {}
+        #stats['mi'] = model.mi
+        #stats['tc'] = model.tc
+        for k in self.hist.keys():
+            print("Dumping history ", k, " with length ", self.hist[k])
+            #if 'screening' in k or 'info_dropout' in k or 'vae' in k or 'noise_loss' in k:
+            stats[k] = self.hist[k]
+        pickle.dump(stats, fle)
