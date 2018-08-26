@@ -161,6 +161,7 @@ def gaussian_kl(inputs):
 
 # with defaults?
 def gaussian_prior_kl(inputs):
+    print("Gaussian prior KL inputs : ", inputs)
     [mu1, logvar1] = inputs
     mu2 = K.variable(0.0)
     logvar2 = K.variable(0.0)
@@ -181,15 +182,16 @@ def binary_kl(inputs):
     mu2 = K.clip(mu2, K.epsilon(), 1-K.epsilon())
     return tf.multiply(mu1, K.log(mu1)) + tf.multiply(1-mu1, K.log(1-mu1))- tf.multiply(mu1, K.log(mu2)) - tf.multiply(1-mu1, K.log(1-mu2))
 
-def binary_crossentropy(inputs):
-    print(inputs)
+def bce(inputs):
+    print("Binary cross entropy inputs : ", inputs)
     if len(inputs) == 2:
         [mu1, mu2] = inputs
         if isinstance(mu2, list):
             print("**** LOSS AVERAGING BCE ****")
             return average([K.binary_crossentropy(mu1, pred) for pred in mu2])
         else:
-            return K.binary_crossentropy(mu1, mu2)
+            return -tf.multiply(mu1, tf.log(mu1+10**-7))+10**-7*mu2
+            #return K.binary_crossentropy(mu1, mu2)
     else:
         true = inputs[0]
         return average([K.binary_crossentropy(true, inputs[pred]) for pred in range(1, len(inputs))])
@@ -198,7 +200,6 @@ def mean_squared_error(inputs):
     if len(inputs) == 2:
         [mu1, mu2] = inputs
         if isinstance(mu2, list):
-            print("**** LOSS AVERAGING BCE ****")
             return average([mse(mu1, pred) for pred in mu2])
         else:
             return mse(mu1, mu2)

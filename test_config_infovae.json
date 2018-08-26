@@ -10,13 +10,8 @@
 		[{
 			"layer": -1, 
 			"encoder": true,
-			"type": "echo",	
-			"k": 1,
-			"layer_kwargs":{
-				"d_max": 50,
-				"init": 2.438,
-				"noise": "multiplicative"
-			}
+			"type": "add",	
+			"k": 1
 		}], 
 	"initializer": "zero",
 	"activation": {  
@@ -28,7 +23,13 @@
 	"losses":
 		[
 			{
-			"type": "echo",
+			"type": "mmd",
+			"layer": -1, 
+			"encoder": true,
+			"weight": 1000
+			},
+			{
+			"type": "vae",
 			"layer": -1, 
 			"encoder": true,
 			"weight": 1

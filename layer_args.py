@@ -51,7 +51,7 @@ class Layer(object):
         for samp in range(self.k):
             net = 'E' if self.encoder else 'D'
             name_suffix = str(net)+'_'+str(index)+'_'+str(samp) if self.k > 1 else str(net)+'_'+str(index)
-            if self.type in ['add', 'vae']: 
+            if self.type in ['add', 'vae', 'additive']: 
                 if samp == 0:
                     z_mean = Dense(self.latent_dim, activation='linear',
                                name='z_mean'+name_suffix, **self.layer_kwargs)
@@ -62,7 +62,7 @@ class Layer(object):
                 z_act = Lambda(layers.vae_sample, name = 'z_act_'+name_suffix) #arguments = self.layer_kwargs)
                 act_list.append(z_act)
 
-            elif self.type in ['mul', 'ido']:
+            elif self.type in ['mul', 'ido', 'multiplicative']:
                 if samp == 0:   
                     z_mean = Dense(self.latent_dim, activation='linear', name='z_mean'+name_suffix, **self.layer_kwargs)
                     z_logvar = Dense(self.latent_dim, activation='linear', name='z_var'+name_suffix, **self.layer_kwargs)
@@ -75,7 +75,7 @@ class Layer(object):
                     # slightly different here... layer_kwargs used for echo / lambda
                     z_mean = Dense(self.latent_dim, activation='linear', name='z_mean'+name_suffix)# **self.layer_kwargs)
                     z_act = Lambda(layers.echo_sample, name = 'z_act_'+name_suffix, arguments = self.layer_kwargs)
-                    capacity = Lambda(layers.echo_capacity, name = 'capacity'+name_suffix, arguments = {'init': self.layer_kwargs['init']})
+                    capacity = Lambda(layers.echo_capacity, name = 'capacity'+name_suffix, arguments = {'init': self.layer_kwargs['init'], 'batch': self.layer_kwargs['batch']})
                 # note: k = 1 if k used as d_max, otherwise will have k separate layer calls
                 # tf.get_variable  self.layer_kwargs['init']
                 stats_list.append([z_mean])

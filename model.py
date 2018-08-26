@@ -70,6 +70,7 @@ class NoiseModel(Model):
             'recon': None,
             #'recon_layers': None,
             'losses': None,
+            'metrics': None,
             'constraints': None,
             'lagrangian_fit': False,
             'beta': 1.0,
@@ -86,6 +87,9 @@ class NoiseModel(Model):
 
         self._parse_args()
         self._parse_layers_and_losses()
+        self._enc_latent_ind = []
+        #self._enc_ind_args = []
+        self._dec_latent_ind = []
 
         # initialize dictionary (with keys = layer index) of dict of called layers (keys = 'stat', 'act')
         self.encoder_layers = [] #defaultdict(dict)
@@ -205,29 +209,38 @@ class NoiseModel(Model):
         self._enc_loss_ind = []
         self._dec_loss_ind = []
         print(self.layers)
+        print(self.layers[0])
+        if self.metrics is not None:
+            for metric in self.metrics:
+                if metric['weight'] != 0:
+                    warn("Metric ", metric['type'], " weight is non-zero. Setting to 0.  Enter as loss to add to objective")
+                    metric['weight'] = 0
+                self.losses.append(metric)
 
         # loop through to record which layers have losses attached
         if self.losses is not None and isinstance(self.losses, list):
-            for i in range(len(self.losses)):
-                lossargs = self.losses[i]
-                if lossargs.get('encoder', True) and (lossargs.get('type') not in RECON_LOSSES and lossargs.get('add_loss') not in RECON_LOSSES): # loss defaults to encoder unless in recon
-                    if 'encoder' not in lossargs:
-                        warn("Loss entry ", i, ": ",  lossargs.get('type', '') ," defaulting to encoder")
+            pass # TESTING IF WE CAN REMOVE THIS
+            # for i in range(len(self.losses)):
+            #     lossargs = self.losses[i]
+            #     if lossargs.get('encoder', True) and (lossargs.get('type') not in RECON_LOSSES and lossargs.get('add_loss') not in RECON_LOSSES): # loss defaults to encoder unless in recon
+            #         if 'encoder' not in lossargs:
+            #             warn("Loss entry ", i, ": ",  lossargs.get('type', '') ," defaulting to encoder")
 
-                    self._enc_loss_ind.append(len(self.encoder_dims)-1 
-                                                if lossargs.get('layer', -1) == -1
-                                                else lossargs['layer'])
-                else:
-                    self._dec_loss_ind.append(len(self.decoder_dims)-1 
-                                                if lossargs.get('layer', -1) == -1
-                                                else lossargs['layer'])
-                    if lossargs.get('layer', -1) != -1:
-                        print("WARNING: loss on intermediate decoder layers doesn't seem to make sense.  If you want a Corex layer to reconstruct a decoder layer, specify via layer arguments and mapping btwn indices of layer_args list and latent_dims list")
+            #         self._enc_loss_ind.append(len(self.encoder_dims)-1 
+            #                                     if lossargs.get('layer', -1) == -1
+            #                                     else lossargs['layer'])
+            #     else:
+            #         self._dec_loss_ind.append(len(self.decoder_dims)-1 
+            #                                     if lossargs.get('layer', -1) == -1
+            #                                     else lossargs['layer'])
+            #         if lossargs.get('layer', -1) != -1:
+            #             print("WARNING: loss on intermediate decoder layers doesn't seem to make sense.  If you want a Corex layer to reconstruct a decoder layer, specify via layer arguments and mapping btwn indices of layer_args list and latent_dims list")
         else:
             self.losses = []
             print("WARNING: Losses not specified as list of dictionaries?  DEFAULTING to Recon argument (+ any default noise layers specified) ")
 
-        # loop through to record which layers have special layer arguments (noise regularization or non-dense layer type)
+        # loop through to record which layers have special layer arguments 
+        # (noise regularization or non-dense layer type)
         for i in range(len(self.layers)):
             layerargs = self.layers[i]
             if layerargs.get('encoder', True):
@@ -295,6 +308,7 @@ class NoiseModel(Model):
         print("***********************         DECODER          *****************************")
         self.decoder_layers = self._build_architecture(self.encoder_layers[len(self.encoder_layers)-1]['act'], encoder = False)
         self.model_outputs, self.model_losses, self.model_loss_weights = self._make_losses()
+        #self.metric_outputs, self.metric_losses, self.metric_weights = self._make_losses(metrics = True)
         callbacks = self._make_callbacks()
         print(self.model_outputs)
         print([type(o) for o in self.model_outputs])
@@ -308,6 +322,8 @@ class NoiseModel(Model):
         print('outputs ', self.model_outputs)
         print('losses ', self.model_losses)
         
+        print("optimizer ", self.optimizer)
+        print("ENTROPY OF DATA ", np.sum(np.sum(np.multiply(x_train, np.log(x_train+10**-4)), axis = -1)))
         self.model.compile(optimizer = self.optimizer, loss = self.model_losses, loss_weights = self.model_loss_weights) # metrics?
         
         print(self.lagrangian_fit)
@@ -367,93 +383,108 @@ class NoiseModel(Model):
         generator = keras.models.Model(input = [z_inp], output = [z_out])
         return generator
 
-    def _make_losses(self):
-        self.model_outputs = []
-        self.model_losses = []
-        self.model_loss_weights = []
-
+    def _make_losses(self, metrics = False):
+        if metrics:
+            loss_list = self.metrics
+            self.metric_outputs = [] 
+            self.metric_losses = [] 
+            self.metric_weights = []
+        else:
+            loss_list = self.losses
+            self.model_outputs = []
+            self.model_losses = []
+            self.model_loss_weights = []
         
-        #for ls in ['dec', 'enc']:
-        for i in range(len(self.losses)):
-            print('loss type ', self.losses[i])
-            #print(vars(self.losses[i]))
-            loss = Loss(**self.losses[i]) if isinstance(self.losses[i], dict) else self.losses[i]
-            
-            print("Loss constraint value: ", loss.constraint)
-            #if loss.constraint is not None:
-            #    self.lagrangian_fit = True
-
-            enc = loss.encoder
-            #inds = self._enc_loss_ind if enc  else self._dec_loss_ind
-            #latent_inds = self._enc_latent_ind if enc else self._dec_latent_ind
-            #loss_dict = self._enc_losses if enc else self._dec_losses
+        if loss_list is not None:
+            #for ls in ['dec', 'enc']:
+            for i in range(len(loss_list)):
+                print('loss type ', loss_list[i])
+                #print(vars(loss_list[i]))
+                loss = Loss(**loss_list[i]) if isinstance(loss_list[i], dict) else loss_list[i]
                 
-            
-            # remove beta from Loss constructor and check if weight callable 
-            
-            # loss_list.append({'loss': loss,
-            #                 'function': loss.make_function(),
-            #                 'weight': loss.get_loss_weight(), 
-            #                 'inp_list': loss.describe_inputs()
-            #                 })
+                print("Loss constraint value: ", loss.constraint)
+                #if loss.constraint is not None:
+                #    self.lagrangian_fit = True
 
-            fn = loss.make_function()
-            print('loss func *********', loss.type, loss.layer)
-            inputs_layer, inputs_output = loss.describe_inputs()
-            outputs = []
-            print('describe inputs', inputs_layer, inputs_output)
-            
-            for j in range(len(inputs_layer)): # 'stat' or 'act'
-                # enc / dec already done
-                layers = self.encoder_layers if enc else self.decoder_layers
-                lyr = loss.layer 
-                 
-                #  'stat' or 'act' for enc/dec layer # lyr
-                if 'act' in inputs_layer[j] or 'addl' in inputs_layer[j]:# == 'act':
-                    #if not loss.encoder and lyr in [-1, len(self.decoder_dims)-1]:
-                    #    layers[lyr]['act'].insert(0, self.recon_true)
-                    outputs.extend(layers[lyr][inputs_layer[j]])
-                elif 'stat' in inputs_layer[j]:
-                    print('adding stat from ', layers[lyr], 'choosing lyr_arg', inputs_layer[j])
-                    outputs.extend(layers[lyr][inputs_layer[j]][0])
-            print('outputs for layer ', outputs)
-            for j in range(len(inputs_output)):
-                layers = self.decoder_layers
-                lyr = loss.output
-                if 'act' in inputs_output[j]:# == 'act':
-                    # all output activations get either recon_true or encoder activation (for corex)
-                    if (lyr == -1): #[-1, len(self.decoder_dims)-1]):
-                        recon_true = self.recon_true
-                    else:
-                        if len(self.encoder_layers[lyr]['act']) == 1:
-                            recon_true = layers[lyr]['act'][0]
-                            print('rECON TrUE ', recon_true) 
-                        else:
-                            raise NotImplementedError("Cannot handle > 1 activation for intermediate layer reconstruction")
+                enc = loss.encoder
+                #inds = self._enc_loss_ind if enc  else self._dec_loss_ind
+                #latent_inds = self._enc_latent_ind if enc else self._dec_latent_ind
+                #loss_dict = self._enc_losses if enc else self._dec_losses
                     
-                    layers[lyr][inputs_output[j]].insert(0, recon_true)
-                    #print('act output', layers[lyr][inputs_output[j]])
-                    outputs.extend(layers[lyr][inputs_output[j]])
-                elif 'stat' in inputs_output[j]:
-                    #print('stat output', layers[lyr][inputs_output[j]])
-                    outputs.extend(layers[lyr][inputs_output[j]][0])
-                # not handling 'addl' tensors
+                
+                # remove beta from Loss constructor and check if weight callable 
+                
+                # loss_list.append({'loss': loss,
+                #                 'function': loss.make_function(),
+                #                 'weight': loss.get_loss_weight(), 
+                #                 'inp_list': loss.describe_inputs()
+                #                 })
 
-            print('outputs for layer ', outputs)
-        
-            self.model_outputs.append(fn(outputs))
-            self.model_losses.append(l.dim_sum)
-            self.model_loss_weights.append(loss.get_loss_weight())
-            print("OUTPUTS ", self.model_outputs)
-            print("Losses: ", self.model_losses)
+                fn = loss.make_function()
+                print('loss func *********', loss.type, loss.layer)
+                inputs_layer, inputs_output = loss.describe_inputs()
+                outputs = []
+                print('describe inputs', inputs_layer, inputs_output)
+                
+                for j in range(len(inputs_layer)): # 'stat' or 'act'
+                    # enc / dec already done
+                    layers = self.encoder_layers if enc else self.decoder_layers
+                    lyr = loss.layer 
+                     
+                    #  'stat' or 'act' for enc/dec layer # lyr
+                    if 'act' in inputs_layer[j] or 'addl' in inputs_layer[j]:# == 'act':
+                        #if not loss.encoder and lyr in [-1, len(self.decoder_dims)-1]:
+                        #    layers[lyr]['act'].insert(0, self.recon_true)
+                        outputs.extend(layers[lyr][inputs_layer[j]])
+                    elif 'stat' in inputs_layer[j]:
+                        print('adding stat from ', layers[lyr], 'choosing lyr_arg', inputs_layer[j])
+                        outputs.extend(layers[lyr][inputs_layer[j]][0])
+                print('outputs for layer ', outputs)
+                for j in range(len(inputs_output)):
+                    layers = self.decoder_layers
+                    lyr = loss.output
+                    if 'act' in inputs_output[j]:# == 'act':
+                        # all output activations get either recon_true or encoder activation (for corex)
+                        if (lyr == -1): #[-1, len(self.decoder_dims)-1]):
+                            recon_true = self.recon_true
+                        else:
+                            if len(self.encoder_layers[lyr]['act']) == 1:
+                                recon_true = layers[lyr]['act'][0]
+                                print('rECON TrUE ', recon_true) 
+                            else:
+                                raise NotImplementedError("Cannot handle > 1 activation for intermediate layer reconstruction")
+                        
+                        layers[lyr][inputs_output[j]].insert(0, recon_true)
+                        #print('act output', layers[lyr][inputs_output[j]])
+                        outputs.extend(layers[lyr][inputs_output[j]])
+                    elif 'stat' in inputs_output[j]:
+                        #print('stat output', layers[lyr][inputs_output[j]])
+                        outputs.extend(layers[lyr][inputs_output[j]][0])
+                    # not handling 'addl' tensors
+
+                print('outputs for layer ', outputs)
             
-        # losses are all Lambda layers on tensors to facilitate optimization in tensorflow
-            # return dimension-wise loss and then sum in dummy loss function?
+                if metrics:
+                    self.metric_outputs.append(fn(outputs))
+                    self.metric_losses.append(l.dim_sum) 
+                    self.metric_weights.append(loss.get_loss_weight())
+                else:
+                    self.model_outputs.append(fn(outputs))
+                    self.model_losses.append(l.dim_sum)
+                    self.model_loss_weights.append(loss.get_loss_weight())
+                print("OUTPUTS ", self.model_outputs)
+                print("Losses: ", self.model_losses)
+                
+            # losses are all Lambda layers on tensors to facilitate optimization in tensorflow
+                # return dimension-wise loss and then sum in dummy loss function?
 
-        # allow returning dimension-wise loss for plot_traversals, e.g.  
-        # mean and sum over batch / dimensions should be done here
+            # allow returning dimension-wise loss for plot_traversals, e.g.  
+            # mean and sum over batch / dimensions should be done here
 
-        return self.model_outputs, self.model_losses, self.model_loss_weights
+        if metrics:
+            return self.metric_outputs, self.metric_losses, self.metric_weights
+        else:
+            return self.model_outputs, self.model_losses, self.model_loss_weights
 
     def _make_callbacks(self):
         callbacks = []
@@ -668,19 +699,19 @@ class NoiseModel(Model):
         #)
 
         n_samples = x_train.shape[0]
-        print(n_samples)
         self.sess = tf.Session()
         self.hist = defaultdict(list)
         with self.sess.as_default():
             tf.global_variables_initializer().run()
             for i in range(self.epochs):  # Outer training loop
                 epoch_avg = defaultdict(list)
-                #total_avg = []
-                #lagr_avg = []
+                total_avg = []
+                lagr_avg = []
                 lm_avg = []
                 perm = np.random.permutation(n_samples)  # random permutation of data for each epoch
                 
                 for offset in range(0, (int(n_samples / self.batch) * self.batch), self.batch):  # inner
+                    
                     batch_data = x_train[perm[offset:(offset + self.batch)]]
                     result = self.sess.run([trainer, lagrangian_trainer],
                                            feed_dict={self.input_tensor: batch_data})
@@ -692,21 +723,21 @@ class NoiseModel(Model):
                         # SLOW?  fix recording
                         batch_loss = self.sess.run(loss_layer, feed_dict={self.input_tensor: batch_data})
                         epoch_avg[loss_layer.name].append(np.mean(np.sum(batch_loss, axis = -1), axis = 0))
-                    #total_avg.append(self.sess.run(total_loss, feed_dict = {self.input_tensor: batch_data}))
-                    #lagr_avg.append(self.sess.run(lagrangian_loss, feed_dict = {self.input_tensor:batch_data}))
+                    total_avg.append(self.sess.run(total_loss, feed_dict = {self.input_tensor: batch_data}))
+                    lagr_avg.append(self.sess.run(lagrangian_loss, feed_dict = {self.input_tensor:batch_data}))
                     lm_avg.append(self.sess.run(multiplier))
                 #print("Epoch ", str(i), ": ", end ="")
                 for loss_layer in self.model.outputs:
                     #epoch_loss = np.sum(epoch_avg[loss_layer.name])
                     epoch_loss = np.mean(epoch_avg[loss_layer.name])  
                     self.hist[loss_layer.name].append(epoch_loss)
-                    #print(loss_layer.name.split("/")[0], " : ", epoch_loss, " \t ", end="")
+                    print(loss_layer.name.split("/")[0], " : ", epoch_loss, " \t ", end="")
                 for i in range(len(lagr_vars)):
                     self.hist[lagr_vars[i].name].append(lm_avg)
-                #print("Lagr mult for loss ", i, ": ", np.mean(lm_avg), "\t ", end="")
-                #print(" Lagr Loss : ", np.mean(lagr_avg), " \t", end ="")
-                #print(" Total Loss : ", np.mean(total_avg), " \t", end ="")
-                #print()
+                print(" Lagr mult for loss ", i, ": ", np.mean(lm_avg), "\t ", end="")
+                print(" Lagr Loss : ", np.mean(lagr_avg), " \t", end ="")
+                print(" Total Loss : ", np.mean(total_avg), " \t", end ="")
+                print()
         #Callbacks?
 
                 #summary, loss = result[1], result[2]

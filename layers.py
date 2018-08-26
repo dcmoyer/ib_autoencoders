@@ -27,7 +27,8 @@ def ido_sample(args):
                                   mean=0.,
                                   stddev=std)
     
-  return K.exp(K.log(z_mean) + K.exp(z_noise / 2) * z_score)
+  return K.exp(z_mean + K.exp(z_noise / 2) * z_score)
+  #return K.exp(K.log(z_mean) + K.exp(z_noise / 2) * z_score)
   #return K.exp(K.log(z_mean) + z_noise * epsilon)
 
 def echo_capacity(args, init = -5, batch = 100):
@@ -51,7 +52,7 @@ def echo_capacity(args, init = -5, batch = 100):
     #c = tf.sigmoid(cap_param, name="e_cap")
     return cap_param
 
-def echo_sample(args, init = -5., d_max = 50, batch = 100, multiplicative = False, trainable = False, periodic = False):
+def echo_sample(args, init = -5., d_max = 50, batch = 100, multiplicative = False, noise = 'additive', trainable = False, periodic = False):
   print()
   print("ARGS echo sample : ", args)
   print("init ", init, " dmax ", d_max)
@@ -104,7 +105,7 @@ def echo_sample(args, init = -5., d_max = 50, batch = 100, multiplicative = Fals
     #  inds = [list(range(d_max))]
     print("inds : ", len(inds), " , each len ", len(inds[0]))
     inds = tf.constant(inds, dtype=tf.int32)
-    if multiplicative:
+    if multiplicative or noise == 'multiplicative':
         normal_encoder = z_mean #tf.log(z_mean + 1e-5) # noise calc done in log space
     else:
         normal_encoder = z_mean

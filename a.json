@@ -6,34 +6,29 @@
 	"lr": 0.001,
 	"encoder_dims": [200, 200, 50],
 	"decoder_dims": null,
-	"layers": 
-		[{
-			"layer": -1, 
-			"encoder": true,
-			"type": "echo",	
-			"k": 1,
-			"layer_kwargs":{
-				"d_max": 50,
-				"init": 2.438,
-				"noise": "multiplicative"
-			}
-		}], 
 	"initializer": "zero",
 	"activation": {  
 		"encoder": "softplus",
 		"decoder": "softplus"
 		},
+	"layers": [
+		{
+			"type": "add",
+			"layer": -1,
+			"encoder": true,
+			"k":1
+		}
+	],
 	"output_activation" : "sigmoid",
-	"recon": "bce", 
+	"recon": "bce",
 	"losses":
-		[
-			{
-			"type": "echo",
+		[{
+			"type": "vae",
 			"layer": -1, 
 			"encoder": true,
 			"weight": 1
-			}
-		], 	
+		}
+		],
 	"beta": 1.0,
 	"anneal_schedule": null, 
 	"anneal_function": null

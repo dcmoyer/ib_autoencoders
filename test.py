@@ -28,9 +28,11 @@ d = dataset.MNIST(binary= True)
 
 init_str = str(args.echo_init if args.echo_init is not None else "")
 noise_str = str(args.noise if args.noise is not None else "")
-fn = str("echo"+init_str+noise_str+"_")
+constr = str(args.constraint if args.constraint is not None	else "")
+fn = str("echo"+init_str+noise_str+constr+"_")
 
-m = model.NoiseModel(d, config = 'test_config.json', filename = fn)
+
+m = model.NoiseModel(d, config = args.config, filename = fn)
 
 
 if args.echo_init is not None: 

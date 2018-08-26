@@ -87,7 +87,7 @@ class Loss(object):
                 # IS IWAE LOSS SAME FOR ADDITIVE / MULTIPLICATIVE?
             elif self.type == 'bce' or self.type == 'binary_crossentropy' or self.type == 'binary_cross_entropy':
                 self.from_output = ['act']    
-                return Lambda(l.binary_crossentropy, name = 'bce'+name_suffix)
+                return Lambda(l.bce, name = 'bce'+name_suffix)
             elif self.type == 'mse' or self.type == 'mean_square_error' or self.type == 'mean_squared_error':
                 self.from_output = ['act']    
                 return Lambda(l.mean_squared_error, name = 'mse'+name_suffix)
@@ -187,7 +187,7 @@ class Loss(object):
         if self.recon == 'mse' or self.recon == 'mean_squared_error' or self.recon == 'mean_square_error':
             return l.mean_squared_error
         elif self.recon == 'bce' or self.recon == 'binary_crossentropy' or self.recon == 'binary_cross_entropy':
-            return l.binary_crossentropy
+            return l.bce#binary_crossentropy
         else:
             try:
                 self._import_loss(self.recon, 'keras.losses')
