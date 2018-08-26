@@ -13,7 +13,7 @@
 		},
 	"layers": [
 		{
-			"type": "add",
+			"type": "additive",
 			"layer": -1,
 			"encoder": true,
 			"k":1

@@ -190,7 +190,7 @@ def bce(inputs):
             print("**** LOSS AVERAGING BCE ****")
             return average([K.binary_crossentropy(mu1, pred) for pred in mu2])
         else:
-            return -tf.multiply(mu1, tf.log(mu1+10**-7))+10**-7*mu2
+            return -tf.multiply(mu1, tf.log(mu1+10**-7))+10**-10*mu2
             #return K.binary_crossentropy(mu1, mu2)
     else:
         true = inputs[0]

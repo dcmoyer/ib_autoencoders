@@ -87,9 +87,7 @@ class NoiseModel(Model):
 
         self._parse_args()
         self._parse_layers_and_losses()
-        self._enc_latent_ind = []
         #self._enc_ind_args = []
-        self._dec_latent_ind = []
 
         # initialize dictionary (with keys = layer index) of dict of called layers (keys = 'stat', 'act')
         self.encoder_layers = [] #defaultdict(dict)
@@ -323,7 +321,7 @@ class NoiseModel(Model):
         print('losses ', self.model_losses)
         
         print("optimizer ", self.optimizer)
-        print("ENTROPY OF DATA ", np.sum(np.sum(np.multiply(x_train, np.log(x_train+10**-4)), axis = -1)))
+        print("ENTROPY OF DATA ", np.mean(np.sum(np.multiply(x_train, np.log(x_train+10**-7)), axis = -1)))
         self.model.compile(optimizer = self.optimizer, loss = self.model_losses, loss_weights = self.model_loss_weights) # metrics?
         
         print(self.lagrangian_fit)
