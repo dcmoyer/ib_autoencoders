@@ -182,7 +182,7 @@ def binary_kl(inputs):
     mu2 = K.clip(mu2, K.epsilon(), 1-K.epsilon())
     return tf.multiply(mu1, K.log(mu1)) + tf.multiply(1-mu1, K.log(1-mu1))- tf.multiply(mu1, K.log(mu2)) - tf.multiply(1-mu1, K.log(1-mu2))
 
-def bce(inputs):
+def binary_crossentropy(inputs):
     print("Binary cross entropy inputs : ", inputs)
     if len(inputs) == 2:
         [mu1, mu2] = inputs

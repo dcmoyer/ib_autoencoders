@@ -187,7 +187,7 @@ class Loss(object):
         if self.recon == 'mse' or self.recon == 'mean_squared_error' or self.recon == 'mean_square_error':
             return l.mean_squared_error
         elif self.recon == 'bce' or self.recon == 'binary_crossentropy' or self.recon == 'binary_cross_entropy':
-            return l.bce#binary_crossentropy
+            return l.binary_crossentropy
         else:
             try:
                 self._import_loss(self.recon, 'keras.losses')
