@@ -3,7 +3,7 @@ import keras.backend as K
 import importlib
 from keras.layers import Dense, Lambda
 import layers
-
+import tensorflow as tf
 
 class Layer(object):
     def __init__(self, **kwargs):
@@ -81,6 +81,25 @@ class Layer(object):
                 stats_list.append([z_mean])
                 act_list.append(z_act)
                 addl_list.append(capacity)
+
+            elif self.type in ['bir', 'constant_additive']:
+                if samp == 0:   
+                    z_mean = Dense(self.latent_dim, activation='linear', name='z_mean'+name_suffix)
+                    mi = self.layer_kwargs.get('mi', None)
+                    if mi is None:
+                        var = self.layer_kwargs.get('variance', self.layer_kwargs.get('sigma', self.layer_kwargs.get('noise', None))) 
+                        if var is None:
+                            raise ValueError("Please enter layer_kwarg['mi'] or ['variance'] for bounded rate autoencoder")
+                    else:
+                        var = np.exp(-2*mi/self.latent_dim)
+                    self.layer_kwargs['variance'] = var
+                    z_logvar = Lambda(layers.constant_layer, name = 'z_var'+name_suffix, arguments = {'variance':self.layer_kwargs['variance']})
+                    #K.constant(np.log(var), shape = (self.latent_dim,), name = 'z_var'+name_suffix)
+                    #Dense(self.latent_dim, activation='linear', name='z_var'+name_suffix, **self.layer_kwargs)
+                    stats_list.append([z_mean, z_logvar])
+                z_act = Lambda(layers.vae_sample, name = 'z_act_'+name_suffix)
+                act_list.append(z_act)
+
             else:
                 # import layer module by string (can be specified either in activation or layer_kwargs)
                 try:

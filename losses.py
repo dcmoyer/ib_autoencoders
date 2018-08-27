@@ -17,6 +17,11 @@ EPS = K.epsilon()
 # EVERYTHING RETURNS BATCH X value AS DEFAULT (may sum or average if see fit)
     # return_dimensions option?
 
+def bir(inputs):
+    z_mean, z_logvar = inputs
+    dim = tf.shape(z_mean)[-1]
+    return -.5*z_logvar # will be summed over dim later
+
 def compute_kernel(x, y):
     x_size = tf.shape(x)[0]
     y_size = tf.shape(y)[0]
@@ -31,10 +36,10 @@ def mmd_loss(inputs, gaussian = True):
     print("mmd ")
     if not isinstance(inputs, list):
         q = inputs
-        p = tf.random_normal(q.shape)
+        p = tf.random_normal(tf.shape(q))
     elif len(inputs) == 1:
         q = inputs[0]
-        p = tf.random_normal(q.shape)
+        p = tf.random_normal(tf.shape(q))
     else:
         q, p = inputs
     q_kernel = compute_kernel(q, q)
@@ -190,8 +195,8 @@ def binary_crossentropy(inputs):
             print("**** LOSS AVERAGING BCE ****")
             return average([K.binary_crossentropy(mu1, pred) for pred in mu2])
         else:
-            return -tf.multiply(mu1, tf.log(mu1+10**-7))+10**-10*mu2
-            #return K.binary_crossentropy(mu1, mu2)
+            #return -tf.multiply(mu1, tf.log(mu1+10**-7))+10**-10*mu2
+            return K.binary_crossentropy(mu1, mu2)
     else:
         true = inputs[0]
         return average([K.binary_crossentropy(true, inputs[pred]) for pred in range(1, len(inputs))])

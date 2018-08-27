@@ -87,7 +87,7 @@ class Loss(object):
                 # IS IWAE LOSS SAME FOR ADDITIVE / MULTIPLICATIVE?
             elif self.type == 'bce' or self.type == 'binary_crossentropy' or self.type == 'binary_cross_entropy':
                 self.from_output = ['act']    
-                return Lambda(l.bce, name = 'bce'+name_suffix)
+                return Lambda(l.binary_crossentropy, name = 'bce'+name_suffix)
             elif self.type == 'mse' or self.type == 'mean_square_error' or self.type == 'mean_squared_error':
                 self.from_output = ['act']    
                 return Lambda(l.mean_squared_error, name = 'mse'+name_suffix)
@@ -168,6 +168,9 @@ class Loss(object):
             self.from_layer = ['addl']
             return Lambda(l.echo_loss, arguments = self.loss_kwargs, name = 'mi_echo'+name_suffix)
 
+        elif self.type == 'bir':
+            self.from_layer = ['stat']
+            return Lambda(l.bir, name = 'bir_mi'+name_suffix)
 
         elif self.type == 'mmd':
             self.from_layer = ['act']

@@ -13,7 +13,7 @@
 			"type": "add",	
 			"k": 1
 		}], 
-	"initializer": "zero",
+	"initializer": "glorot_uniform",
 	"activation": {  
 		"encoder": "softplus",
 		"decoder": "softplus"
@@ -26,7 +26,7 @@
 			"type": "mmd",
 			"layer": -1, 
 			"encoder": true,
-			"weight": 1000
+			"weight": 999
 			},
 			{
 			"type": "vae",
@@ -34,7 +34,15 @@
 			"encoder": true,
 			"weight": 1
 			}
-		], 	
+		], 
+	"constraints":
+		[
+			{
+			"loss": 1,
+			"relation": "equal",
+			"value": 5.0
+		}
+	],
 	"beta": 1.0,
 	"anneal_schedule": null, 
 	"anneal_function": null

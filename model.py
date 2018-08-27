@@ -332,8 +332,9 @@ class NoiseModel(Model):
         else:
             self.lagrangian_optimization(x_train, y_train, x_val, y_val)
 
-        
+        self.test_eval()
         self.pickle_dump()
+        self.save_model(self.filename)
         # how to get activation layers?
         examples = x_train[:self.batch]
         z = self._encoder(x = examples)
@@ -350,6 +351,20 @@ class NoiseModel(Model):
                         #sigs = sigs)
 
         #tf_mod(kz, x_out, sess), top = latent_dims[-1], prefix = os.path.join(os.path.dirname(os.path.realpath(__file__)), log_path, '_'), z_act = z_acts, means= means, sigmas = sigs, imgs = p)
+
+
+    def test_eval(self, x_test = None, y_test = None):
+        if x_test is None:
+            try:
+                x_test = self.dataset.x_test
+            except:
+                print("X Test: ", x_test)
+            if x_test is None:
+                raise ValueError('Please feed test data to test_eval method or Dataset object')
+
+        loss_list = self.model.evaluate(x_test, batch_size = self.batch)
+        for i in range(len(loss_list)):
+            self.test_results[model.metrics_names[i]] = loss_list[i]
 
 
     def _encoder(self, x = None):
@@ -665,23 +680,26 @@ class NoiseModel(Model):
 
 
     def lagrangian_optimization(self, x_train, y_train = None, x_val = None, y_val = None, 
-                    init = 1.0, min_lagr = .001, max_lagr = 100.0):
+                   min_lagr = .001, max_lagr = 100.0):
         lagrangians = []
         lagr_vars = []
         for i in range(len(self.constraints)):
             constraint = self.constraints[i]
+            init = self.model_loss_weights[constraint['loss']]*1.0
             sign = -1 if 'geq' in constraint['relation'] or 'greater' in constraint['relation'] else 1
-            multiplier = tf.get_variable("lagr_"+str(i), initializer = init*sign)#, name = ) 
-            print("Model Output Tensors: ", self.model.outputs)
+            multiplier = tf.get_variable("lagr_"+str(i), initializer = init*sign, dtype = tf.float32)#, name = ) 
+            print("Model Output Tensors: ", self.model_losses)
             loss_tensor = self.model.outputs[constraint['loss']] #_losses[constraint['loss']]
             
             print("Constraint value: ", constraint['value'])
             print(sign)
-            lagrangians.append(multiplier*(l.loss_val(loss_tensor) - tf.Variable(constraint['value'], trainable = False))) #= multiplier*(l.dimsum(loss_tensor) - constraint['value'])
+            print(init*sign)
+            lagrangians.append(multiplier*(l.loss_val(loss_tensor) - tf.constant(constraint['value']*1.0))) #= multiplier*(l.dimsum(loss_tensor) - constraint['value'])
             lagr_vars.append(multiplier)
 
         lagrangian_loss = tf.add_n(lagrangians) 
         total_loss = tf.add_n([self.model_loss_weights[i]*l.loss_val(self.model.outputs[i]) for i in range(len(self.model.outputs)) if i != constraint['loss']]) + lagrangian_loss
+        
             # all other parts of objective... 
         other_vars = [v for v in tf.trainable_variables() if "lagr" not in v.name]
 
@@ -723,7 +741,9 @@ class NoiseModel(Model):
                         epoch_avg[loss_layer.name].append(np.mean(np.sum(batch_loss, axis = -1), axis = 0))
                     total_avg.append(self.sess.run(total_loss, feed_dict = {self.input_tensor: batch_data}))
                     lagr_avg.append(self.sess.run(lagrangian_loss, feed_dict = {self.input_tensor:batch_data}))
-                    lm_avg.append(self.sess.run(multiplier))
+                    lm_avg.append(self.sess.run(multiplier, feed_dict = {self.input_tensor:batch_data}))
+                    others = self.sess.run(tf.add_n([self.model_loss_weights[i]*l.loss_val(self.model.outputs[i]) for i in range(len(self.model.outputs)) if i != constraint['loss']]), feed_dict = {self.input_tensor:batch_data})
+                    print("batch lagr mult ", lm_avg[-1], " lagr loss ", lagr_avg[-1], "+ ", others, " = total ", total_avg[-1])
                 #print("Epoch ", str(i), ": ", end ="")
                 for loss_layer in self.model.outputs:
                     #epoch_loss = np.sum(epoch_avg[loss_layer.name])
@@ -781,19 +801,21 @@ class NoiseModel(Model):
     def load_weights(self, model, filename):
         try:
             #model()
-            self = model.load_weights(filename)
+            self = model.load_weights(filename+'_model')
         except:
             print('Error reading file: {0}. Cannot load previous weights'.format(filename))
             exit()
 
 
-    def save_model(self, model, filename):
+    def save_model(self, filename, model = None):
+        if model is None:
+            model = self.model
         json_string = model.to_json()
         open(filename, 'w').write(json_string)
 
 
     def save_weights(self, filename):
-        model.save_weights(filename, overwrite=True)
+        self.model.save_weights(filename+'_weights', overwrite=True)
 
     def pickle_dump(self):
         fle = open(str(self.filename+".pickle"), "wb")
@@ -804,4 +826,6 @@ class NoiseModel(Model):
             print("Dumping history ", k, " with length ", self.hist[k])
             #if 'screening' in k or 'info_dropout' in k or 'vae' in k or 'noise_loss' in k:
             stats[k] = self.hist[k]
+        for k in self.test_results.keys():
+            stats[str('test_'+k)] = self.test_results[k]
         pickle.dump(stats, fle)

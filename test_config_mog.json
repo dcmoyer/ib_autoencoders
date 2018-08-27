@@ -15,7 +15,7 @@
 			"k": 1
 			}
 		], 
-	"initializer": "zero",
+	"initializer": "glorot_uniform",
 	"activation": {  
 		"encoder": "softplus",
 		"decoder": "softplus"

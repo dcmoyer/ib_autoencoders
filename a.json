@@ -6,24 +6,27 @@
 	"lr": 0.001,
 	"encoder_dims": [200, 200, 50],
 	"decoder_dims": null,
-	"initializer": "zero",
+	"initializer": "glorot_uniform",
 	"activation": {  
 		"encoder": "softplus",
 		"decoder": "softplus"
 		},
 	"layers": [
 		{
-			"type": "additive",
+			"type": "bir",
 			"layer": -1,
 			"encoder": true,
-			"k":1
+			"k":1,
+			"layer_kwargs":{
+				"mi": 10.0
+			}
 		}
 	],
 	"output_activation" : "sigmoid",
 	"recon": "bce",
 	"losses":
 		[{
-			"type": "vae",
+			"type": "bir",
 			"layer": -1, 
 			"encoder": true,
 			"weight": 1
