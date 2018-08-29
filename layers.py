@@ -31,21 +31,18 @@ def ido_sample(inputs):
   #return K.exp(K.log(z_mean) + K.exp(z_noise / 2) * z_score)
   #return K.exp(K.log(z_mean) + z_noise * epsilon)
 
-def constant_layer(inputs, variance = 1):
-  print("INPUTS CONSTANT LAYER ", inputs)
-  print("variance ", variance)
-  z_mean = inputs
-  return tf.constant(np.log(variance), shape = tf.shape(z_mean))
+def constant_layer(inputs, variance = 1, batch = 200):
+# needed to pass BIR variance to loss function
+  const = tf.constant(variance, shape = (batch,), dtype = tf.float32)#, shape = tf.shape(z_mean))
+  return K.expand_dims(const, 1) 
 
 
-def echo_capacity(inputs, init = -5, batch = 100):
-  print("inputs (capacity only) : ", inputs)
-  print("init ", init)
+def echo_capacity(inputs, init = -5, batch = 100):  
+# needed to pass the capacity parameter to a loss function
+
   if isinstance(inputs, list):
-    print("inputs is a list")
     z_mean = inputs[0] # only one stat argument to echo sample (mean, no variance)
   else:
-    print("inputs not list")
     z_mean = inputs
   #if isinstance(inputs, list):
   #  z_mean = inputs[0] # only one stat argument to echo sample (mean, no variance)
@@ -60,14 +57,11 @@ def echo_capacity(inputs, init = -5, batch = 100):
     return cap_param
 
 def echo_sample(inputs, init = -5., d_max = 50, batch = 100, multiplicative = False, noise = 'additive', trainable = False, periodic = False):
-  print()
-  print("inputs echo sample : ", inputs)
-  print("init ", init, " dmax ", d_max)
+
   if isinstance(inputs, list):
     z_mean = inputs[0] # only one stat argument to echo sample (mean, no variance)
   else:
     z_mean = inputs
-  print(" Z MEAN ", z_mean)
   def permute_neighbor_indices(batch_size, d_max=-1):
       """Produce an index tensor that gives a permuted matrix of other samples in batch, per sample.
       Parameters
@@ -89,7 +83,6 @@ def echo_sample(inputs, init = -5., d_max = 50, batch = 100, multiplicative = Fa
           inds.append(list(enumerate(sub_batch[:d_max])))
       return inds
 
-  # td: batch = None is problematic: made it a kwarg auto-filled in model...
   #batch = z_mean.get_shape().as_list()[0] if not hasattr(z_mean, '_keras_shape') else K.int_shape(z_mean)[0] #K.cast(K.shape(z_mean)[0], K.floatx()) 
   with tf.variable_scope('encoder_noise', reuse=tf.AUTO_REUSE):
     latent_shape = z_mean.get_shape().as_list()[1:] if not hasattr(z_mean, '_keras_shape') else z_mean._keras_shape[1:]
@@ -98,19 +91,9 @@ def echo_sample(inputs, init = -5., d_max = 50, batch = 100, multiplicative = Fa
     tf.Session().run(cap_param.initializer)
     phi = tf.get_variable('phi', initializer=tf.constant(np.pi, shape=latent_shape, dtype=tf.float32))
     c = tf.sigmoid(cap_param, name="e_cap")
-
-    print()
-    print("ECHO SAMPLE BATCH (size: ", batch, ")")
-    print("capacity: ", c.get_shape().as_list())
-    print("encoder: ", z_mean.get_shape().as_list())
     
-
-    
-    #if batch is not None:
     inds = permute_neighbor_indices(batch, d_max)
-    #else:
-    #  inds = [list(range(d_max))]
-    print("inds : ", len(inds), " , each len ", len(inds[0]))
+
     inds = tf.constant(inds, dtype=tf.int32)
     if multiplicative or noise == 'multiplicative':
         normal_encoder = z_mean #tf.log(z_mean + 1e-5) # noise calc done in log space
@@ -123,18 +106,12 @@ def echo_sample(inputs, init = -5., d_max = 50, batch = 100, multiplicative = Fa
       c_z_stack = tf.stack([tf.pow(c, k) * normal_encoder for k in range(d_max)])  # no phase
     
     #noise = tf.gather(c_z_stack, inds, axis = 0)
-    print("inds: ", inds)
-    print("c_z stack shape ", c_z_stack.shape)
     noise = tf.gather_nd(c_z_stack, inds)
-    print("Noise tensor: ", noise.shape)
-    # Note : made changes here
-    #noise = tf.reduce_sum(noise, axis = 0)
     noise = tf.reduce_sum(noise, axis=1)  # Sums over d_max terms in sum
     noise -= tf.reduce_mean(noise, axis=0)  # Add constant so batch mean is zero
-    print("Final noise tensor ", noise.shape, " z mean ", z_mean.shape)
 
     if multiplicative:
-        noisy_encoder = z_mean * tf.exp(c * noise)
+        noisy_encoder = tf.exp(z_mean + c*noise)# #z_mean * tf.exp(c * noise)
     else:
         noisy_encoder = z_mean + c * noise
 

@@ -31,6 +31,12 @@
 			"encoder": true,
 			"weight": 1
 		},
+		{
+			"type": "mmd",
+			"layer": -1, 
+			"encoder": true,
+			"weight": 1000
+		},
 		{			
 			"type": "mse",
 			"layer": -1, 

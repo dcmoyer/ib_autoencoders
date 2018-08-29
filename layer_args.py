@@ -75,7 +75,7 @@ class Layer(object):
                     # slightly different here... layer_kwargs used for echo / lambda
                     z_mean = Dense(self.latent_dim, activation='linear', name='z_mean'+name_suffix)# **self.layer_kwargs)
                     z_act = Lambda(layers.echo_sample, name = 'z_act_'+name_suffix, arguments = self.layer_kwargs)
-                    capacity = Lambda(layers.echo_capacity, name = 'capacity'+name_suffix, arguments = {'init': self.layer_kwargs['init'], 'batch': self.layer_kwargs['batch']})
+                    capacity = Lambda(layers.echo_capacity, name = 'capacity'+name_suffix, arguments = {'init': self.layer_kwargs['init']})#, 'batch': self.layer_kwargs['batch']})
                 # note: k = 1 if k used as d_max, otherwise will have k separate layer calls
                 # tf.get_variable  self.layer_kwargs['init']
                 stats_list.append([z_mean])
@@ -91,9 +91,9 @@ class Layer(object):
                         if var is None:
                             raise ValueError("Please enter layer_kwarg['mi'] or ['variance'] for bounded rate autoencoder")
                     else:
-                        var = np.exp(-2*mi/self.latent_dim)
+                        var = -2*mi/self.latent_dim
                     self.layer_kwargs['variance'] = var
-                    z_logvar = Lambda(layers.constant_layer, name = 'z_var'+name_suffix, arguments = {'variance':self.layer_kwargs['variance']})
+                    z_logvar = Lambda(layers.constant_layer, name = 'z_var'+name_suffix, arguments = {'variance':self.layer_kwargs['variance'], 'batch': self.layer_kwargs['batch']})
                     #K.constant(np.log(var), shape = (self.latent_dim,), name = 'z_var'+name_suffix)
                     #Dense(self.latent_dim, activation='linear', name='z_var'+name_suffix, **self.layer_kwargs)
                     stats_list.append([z_mean, z_logvar])

@@ -1,5 +1,5 @@
 {
-	"epochs": 500,
+	"epochs": 5,
 	"batch": 200,
 	"optimizer": "Adam",
 	"optimizer_params": {}, 
@@ -33,6 +33,12 @@
 			"layer": -1, 
 			"encoder": true,
 			"weight": 1
+			},
+			{
+			"type": "mse",
+			"layer": -1, 
+			"encoder": false,
+			"weight": 0.0
 			}
 		], 
 	"constraints":

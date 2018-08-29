@@ -84,7 +84,7 @@ class MNIST(Dataset):
 
             (x_train, y_train), (x_test, y_test) = mnist.load_data()
             print(train_data.shape, y_train.shape)
-            return train_data, y_train, test_data, y_test
+            return train_data, test_data, y_train, y_test
             #return train_data, validation_data, test_data
 
 

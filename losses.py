@@ -19,8 +19,9 @@ EPS = K.epsilon()
 
 def bir(inputs):
     z_mean, z_logvar = inputs
-    dim = tf.shape(z_mean)[-1]
-    return -.5*z_logvar # will be summed over dim later
+    print("BIR VAR SHAPE ", z_logvar)
+    dim = tf.to_float(tf.shape(z_mean)[-1])
+    return -.5*dim*z_logvar # will be summed over dim later
 
 def compute_kernel(x, y):
     x_size = tf.shape(x)[0]
