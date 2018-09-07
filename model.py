@@ -2,6 +2,7 @@ import numpy as np
 import keras.backend as K
 import tensorflow as tf
 import importlib
+import matplotlib.pyplot as plt
 import json
 from collections import defaultdict
 from keras import backend as K
@@ -59,6 +60,7 @@ class NoiseModel(Model):
             'initializer': 'glorot_uniform',
             'optimizer_params': {},
             'lr': 0.001,
+            'lr_lagr': .1,
             'input_shape': None,
             'activation': {'encoder': 'softplus', 'decoder': 'softplus'},
             'output_activation': 'sigmoid',
@@ -78,7 +80,10 @@ class NoiseModel(Model):
             'anneal_function': None,
         }
         if config is not None:
-            self.args.update(json.load(open(config)))
+            if isinstance(config, dict):
+                self.args.update(config)
+            else:
+                self.args.update(json.load(open(config)))
 
         # read kwargs into dictionary
         self.args.update(args_dict) 
@@ -300,16 +305,16 @@ class NoiseModel(Model):
     def fit(self, x_train, y_train = None, x_val = None, y_val = None):
         self.input_tensor = Input(shape = (self.dataset.dim,)) if self.input_shape is None else Input(shape = self.input_shape) 
         self.recon_true = self.input_tensor # Lambda(lambda y : y, name = 'x_true')(x)
-        print('INPUT SHAPE ', self.input_shape, ' x shape ', self.input_tensor, self.input_shape.insert(-1, 0) if self.input_shape is not None else '')
-        print("***********************         ENCODER          *****************************")
+        #print('INPUT SHAPE ', self.input_shape, ' x shape ', self.input_tensor, self.input_shape.insert(-1, 0) if self.input_shape is not None else '')
+        #print("***********************         ENCODER          *****************************")
         self.encoder_layers = self._build_architecture([self.input_tensor], encoder = True)
-        print("***********************         DECODER          *****************************")
+        #print("***********************         DECODER          *****************************")
         self.decoder_layers = self._build_architecture(self.encoder_layers[len(self.encoder_layers)-1]['act'], encoder = False)
         self.model_outputs, self.model_losses, self.model_loss_weights = self._make_losses()
         #self.metric_outputs, self.metric_losses, self.metric_weights = self._make_losses(metrics = True)
         callbacks = self._make_callbacks()
-        print(self.model_outputs)
-        print([type(o) for o in self.model_outputs])
+        #print(self.model_outputs)
+        #print([type(o) for o in self.model_outputs])
         self.model = keras.models.Model(inputs = self.input_tensor, outputs = self.model_outputs)
         print(self.model.summary())
         for i in self.model.layers[1:]:
@@ -317,21 +322,27 @@ class NoiseModel(Model):
                 print(i.name, i.activation)
             except:
                 pass
-        print('outputs ', self.model_outputs)
-        print('losses ', self.model_losses)
+        #print('outputs ', self.model_outputs)
+        #print('losses ', self.model_losses)
         
-        print("optimizer ", self.optimizer)
+        #print("optimizer ", self.optimizer)
         #print("ENTROPY OF DATA ", np.mean(np.sum(np.multiply(x_train, np.log(x_train+10**-7)), axis = -1)))
-        self.model.compile(optimizer = self.optimizer, loss = self.model_losses, loss_weights = self.model_loss_weights) # metrics?
         
-        print(self.lagrangian_fit)
+        self.model.compile(optimizer = self.optimizer, loss = self.model_losses, loss_weights = self.model_loss_weights) # metrics?
+        self.sess = tf.Session()
+        with self.sess.as_default():
+            tf.global_variables_initializer().run()
+        
+        #print(self.lagrangian_fit)
         if not self.lagrangian_fit:
+            #self.model.compile(optimizer = self.optimizer, loss = self.model_losses, loss_weights = self.model_loss_weights) # metrics?
             hist = self.model.fit(x_train, ([x_train] if y_train is None else [y_train])*len(self.model_outputs), 
                                epochs = self.epochs, batch_size = self.batch, callbacks = callbacks)
             self.hist= hist.history
         else:
             self.lagrangian_optimization(x_train, y_train, x_val, y_val)
-
+            #self.model.compile(optimizer = self.optimizer, loss = self.model_losses, loss_weights = self.model_loss_weights) # metrics?
+        
         self.test_eval()
         self.pickle_dump()
         self.save_model(self.filename)
@@ -342,11 +353,14 @@ class NoiseModel(Model):
 
         #means = K.mean(z, axis = 0)
         #sigs = K.sqrt(K.var(z, axis = 0))
-        analysis.plot_traversals(examples, 
-                        self._encoder(), 
-                        self._decoder(),
-                        z_act = z,
-                        imgs = 3)#,
+
+
+
+        # analysis.plot_traversals(examples, 
+        #                 self._encoder(), 
+        #                 self._decoder(),
+        #                 z_act = z,
+        #                 imgs = 3)#,
                         #means = means,
                         #sigs = sigs)
 
@@ -359,13 +373,44 @@ class NoiseModel(Model):
             try:
                 x_test = self.dataset.x_test
             except:
-                print("X Test: ", x_test)
+                print("X Test: ", x_test.shape)
             if x_test is None:
                 raise ValueError('Please feed test data to test_eval method or Dataset object')
-        loss_list = self.model.evaluate(x_test, [x_test]*len(self.model.outputs), batch_size = self.batch)
-        for i in range(len(loss_list)):
-            self.test_results[self.model.metrics_names[i]] = loss_list[i]
-            print("Test loss ", self.model.metrics_names[i], " : ", loss_list[i])
+        #preds = self.model.predict(x_test, batch_size = self.batch)
+        
+        #preds = self.sess.run(self.model.outputs,
+        #            feed_dict={self.input_tensor: x_test})
+        
+        print("INPUT TENSOR SHAPE ", self.input_tensor)
+        try:
+            print(K.int_shape(self.input_tensor))
+        except:
+            pass
+
+        inps = self.sess.run(self.loss_inputs,
+                    feed_dict={self.input_tensor: x_test})
+
+        for i in range(len(inps)):
+            lv = l.loss_val(self.loss_functions[i]([K.variable(tensor) for tensor in inps[i]])).eval(session=K.get_session())
+            print("Loss ", self.model.metrics_names[i+1], " : ", lv)
+            self.test_results[self.model.metrics_names[i+1]] = lv
+        # for i in range(len(self.loss_functions)):
+        #     print("loss function ", self.loss_functions[i])
+        #     loss_value = self.loss_functions[i](self.loss_inputs[i])
+        #     loss_value = l.loss_val(loss_value)
+        #     print()
+        #     print("Loss ", self.model.metrics_names[i+1], " : ", self.sess.run(loss_value, feed_dict = {self.input_tensor: x_test}))
+        
+
+        #plt.imsave(arr = bce_pred[-1, :].reshape((28,28)), fname = str('test.png'))
+        #print("BCE test ", l.loss_val(l.binary_crossentropy([K.variable(x_test), K.variable(bce_pred)])).eval(session=K.get_session()))
+        
+        # OLD APPROACH (wrong values for lagrangian)
+        # loss_list = self.model.evaluate(x_test, [x_test]*len(self.model.outputs), batch_size = self.batch)
+        
+        # for i in range(len(loss_list)):
+        #    self.test_results[self.model.metrics_names[i]] = loss_list[i]
+        #    print("Test loss ", self.model.metrics_names[i], " : ", loss_list[i])
 
     def _encoder(self, x = None):
         for i in self.model.layers:
@@ -375,6 +420,23 @@ class NoiseModel(Model):
         get_z = K.function([self.model.layers[0].get_input_at(0)], [
                         self.model.get_layer(final_latent).get_output_at(0)])
         return get_z if x is None else get_z([x])[0]
+
+    def _encoder_stats(self, x = None):
+        for i in self.model.layers:
+            if 'z_mean' in i.name:
+                mean_latent = i.name
+            if 'z_var' in i.name:
+                var_latent = i.name
+
+        get_z_mean = K.function([self.model.layers[0].get_input_at(0)], [
+                        self.model.get_layer(mean_latent).get_output_at(0)])
+        try:
+            get_z_var = K.function([self.model.layers[0].get_input_at(0)], [
+                        self.model.get_layer(var_latent).get_output_at(0)])
+        except:
+            get_z_var = None
+        return get_z_mean, get_z_var if x is None else get_z_mean([x])[0], get_z_var([x])[0]
+        #return get_z if x is None else get_z([x])[0]    
 
     def _decoder(self, x = None):
         for i in self.model.layers:
@@ -408,6 +470,7 @@ class NoiseModel(Model):
             self.model_losses = []
             self.model_loss_weights = []
         
+        
         if loss_list is not None:
             #for ls in ['dec', 'enc']:
             for i in range(len(loss_list)):
@@ -432,8 +495,12 @@ class NoiseModel(Model):
                 #                 'weight': loss.get_loss_weight(), 
                 #                 'inp_list': loss.describe_inputs()
                 #                 })
+                try:
+                    self.loss_functions.append(loss.make_function())
+                except:
+                    self.loss_functions = []
+                    self.loss_functions.append(loss.make_function())
 
-                fn = loss.make_function()
                 print('loss func *********', loss.type, loss.layer)
                 inputs_layer, inputs_output = loss.describe_inputs()
                 outputs = []
@@ -478,11 +545,16 @@ class NoiseModel(Model):
                 print('outputs for layer ', outputs)
             
                 if metrics:
-                    self.metric_outputs.append(fn(outputs))
+                    self.metric_outputs.append(self.loss_functions[-1](outputs))
                     self.metric_losses.append(l.dim_sum) 
                     self.metric_weights.append(loss.get_loss_weight())
                 else:
-                    self.model_outputs.append(fn(outputs))
+                    try:
+                        self.loss_inputs.append(outputs)
+                    except:
+                        self.loss_inputs = []
+                        self.loss_inputs.append(outputs)
+                    self.model_outputs.append(self.loss_functions[-1](outputs))
                     self.model_losses.append(l.dim_sum)
                     self.model_loss_weights.append(loss.get_loss_weight())
                 print("OUTPUTS ", self.model_outputs)
@@ -696,11 +768,14 @@ class NoiseModel(Model):
         lagrangian_loss = tf.add_n(lagrangians) 
         total_loss = tf.add_n([self.model_loss_weights[i]*l.loss_val(self.model.outputs[i]) for i in range(len(self.model.outputs)) if i != constraint['loss']]) + lagrangian_loss
         
-            # all other parts of objective... 
+        # all other parts of objective... 
         other_vars = [v for v in tf.trainable_variables() if "lagr" not in v.name]
 
+        print("other vars ", other_vars)
+        print("LAGR VARS ", lagr_vars)
+
         trainer = tf.train.AdamOptimizer(self.lr).minimize(total_loss, var_list=other_vars)
-        lagrangian_trainer = tf.train.GradientDescentOptimizer(.1).minimize(-lagrangian_loss, var_list=lagr_vars)
+        lagrangian_trainer = tf.train.GradientDescentOptimizer(self.lr_lagr).minimize(-lagrangian_loss, var_list=lagr_vars)
         
         # DOESN'T WORK WITH > 1 CONSTRAINT
         lagr_clip = tf.assign(lagr_vars[0], sign*tf.minimum(tf.maximum(lagr_vars[0], min_lagr), max_lagr))
@@ -748,6 +823,7 @@ class NoiseModel(Model):
                     epoch_loss = np.mean(epoch_avg[loss_layer.name])  
                     self.hist[loss_layer.name].append(epoch_loss)
                     print(loss_layer.name.split("/")[0], " : ", epoch_loss, " \t ", end="")
+                
                 print( "lagr ", np.mean(lm_avg))
                 print()
                 for i in range(len(lagr_vars)):

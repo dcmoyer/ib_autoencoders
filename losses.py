@@ -11,7 +11,7 @@ sys.path.insert(1, '/Users/brekels/autoencoders/')
 import layers
 from functools import partial
 import mixture_losses as mix
-
+from sklearn.metrics import log_loss
 
 EPS = K.epsilon()
 # EVERYTHING RETURNS BATCH X value AS DEFAULT (may sum or average if see fit)
@@ -56,9 +56,9 @@ def echo_loss(inputs, d_max = 50):
     # compare to what Greg's implementation calculates for D, s.b. easy to verify
 
     #capacities = tf.identity(tf.nn.softplus(-cap_param) - np.log(self.c_min), name='capacities')
-    capacities = tf.identity(tf.nn.softplus(- cap_param), name='capacities') #tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
+    capacities = tf.nn.softplus(- cap_param) #tf.identity(tf.nn.softplus(- cap_param), name='capacities') #tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
     cap = tf.reduce_sum(capacities, name="capacity")
-    return tf.expand_dims(tf.expand_dims(cap,0), 1)
+    return tf.expand_dims(cap, 0) #tf.expand_dims(tf.expand_dims(cap,0), 1)
 
 def dim_sum(true, tensor):
     #print('DIMSUM TRUE ', _true)
@@ -201,6 +201,25 @@ def binary_crossentropy(inputs):
     else:
         true = inputs[0]
         return average([K.binary_crossentropy(true, inputs[pred]) for pred in range(1, len(inputs))])
+
+def bce_np(inputs):
+    def np_bce(x, y, eps= 10**-7):
+        y = np.clip(y, eps, 1-eps)
+        return -np.multiply(x, np.log(y))-np.multiply(1-x, np.log(1-y))
+
+    #print("Binary cross entropy inputs : ", inputs)
+    if len(inputs) == 2:
+        [mu1, mu2] = inputs
+        if isinstance(mu2, list):
+            print("**** LOSS AVERAGING BCE ****")
+            return np.mean([np_bce(mu1, pred) for pred in mu2])
+        else:
+            #return -tf.multiply(mu1, tf.log(mu1+10**-7))+10**-10*mu2
+            print("NP BCE shape ", np_bce(mu1, mu2).shape)
+            return np.mean(np.sum(np_bce(mu1, mu2), axis = -1))
+    else:
+        true = inputs[0]
+        return true
 
 def mean_squared_error(inputs):
     if len(inputs) == 2:

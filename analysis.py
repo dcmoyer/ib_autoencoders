@@ -18,10 +18,37 @@ import pandas as pd
 import os
 from sklearn.cross_validation import cross_val_score
 from scipy.special import entr
-
+from collections import defaultdict
 
 # if isinstance( data, Dataset):
 #   data = data.data
+def rd_curve(hist, test = None, legend = None, prefix = ''):
+    recons = defaultdict(list)
+    regs = defaultdict(list)
+    lagrs = defaultdict(list)
+    offset = .1
+    for loss_run in hist:
+        for loss in loss_run.keys():
+            if 'recon' in loss:
+                recons[loss].append(loss_run[loss][-1])
+            elif 'reg' in loss:
+                regs[loss].append(loss_run[loss][-1])
+            elif 'lagr' in loss:
+                lagrs[loss].append(loss_run[loss][-1])
+    for reg in regs.keys():
+        for recon in recons.keys():
+            plt.figure()
+            plt.scatter(regs[reg], recons[recon])
+            for i in range(len(regs[reg])):
+                plt.annotate(str(round(indices[i],2)), xy=(regs[reg]+offset, recons[recon]+offset))
+            plt.savefig(str(prefix)+'_'+recon+'_'+reg+'.pdf', bbox_inches='tight')
+        for lagr in lagrs.keys():
+            plt.figure()
+            plt.scatter(regs[reg], lagrs[lagr])
+            for i in range(len(regs[reg])):
+                plt.annotate(str(round(indices[i], 2)), xy=(regs[reg]+offset, lagrs[lagr]+offset))
+            plt.savefig(str(prefix)+'_'+lagr+'_'+reg+'.pdf', bbox_inches='tight')
+    #legend = param values
 
 
 def plot_loss(hist, keys = ['loss', 'val_loss'], prefix=""):

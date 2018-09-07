@@ -51,12 +51,13 @@ def echo_capacity(inputs, init = -5, batch = 100):
   with tf.variable_scope('encoder_noise', reuse=tf.AUTO_REUSE):
     #latent_shape = z_mean.get_shape().as_list()[1:] if not hasattr(z_mean, '_keras_shape') else z_mean._keras_shape[1:]
     #init = tf.constant(init, shape=latent_shape, dtype=tf.float32)  # Init with very small noise
-    cap_param = tf.get_variable("capacity_parameter")#, initializer=init)
+    cap_param = K.variable(tf.get_variable("capacity_parameter"))#, initializer=init)
     #phi = tf.get_variable('phi', initializer=tf.constant(np.pi, shape=latent_shape, dtype=tf.float32))
     #c = tf.sigmoid(cap_param, name="e_cap")
     return cap_param
 
-def echo_sample(inputs, init = -5., d_max = 50, batch = 100, multiplicative = False, noise = 'additive', trainable = False, periodic = False):
+def echo_sample(inputs, init = -5., d_max = 50, batch = 100, multiplicative = False, 
+      noise = 'additive', trainable = True, periodic = False):
 
   if isinstance(inputs, list):
     z_mean = inputs[0] # only one stat argument to echo sample (mean, no variance)
@@ -87,7 +88,7 @@ def echo_sample(inputs, init = -5., d_max = 50, batch = 100, multiplicative = Fa
   with tf.variable_scope('encoder_noise', reuse=tf.AUTO_REUSE):
     latent_shape = z_mean.get_shape().as_list()[1:] if not hasattr(z_mean, '_keras_shape') else z_mean._keras_shape[1:]
     init = tf.constant(init, shape=latent_shape, dtype=tf.float32)  # Init with very small noise
-    cap_param = tf.get_variable("capacity_parameter", initializer=init, trainable = trainable)
+    cap_param = K.variable(tf.get_variable("capacity_parameter", initializer=init, trainable = trainable))
     tf.Session().run(cap_param.initializer)
     phi = tf.get_variable('phi', initializer=tf.constant(np.pi, shape=latent_shape, dtype=tf.float32))
     c = tf.sigmoid(cap_param, name="e_cap")

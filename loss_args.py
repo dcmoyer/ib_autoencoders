@@ -72,7 +72,8 @@ class Loss(object):
         return self._get_loss_weight()
 
     def _type_to_function(self):
-        name_suffix = '_'+str(self.layer) if self.layer != -1 else ('_z' if self.encoder else '')
+        #name_suffix = '_'+str(self.layer) if self.layer != -1 else ('_z' if self.encoder else '')
+        name_suffix = '_'+('recon' if self.type in RECON_LOSSES else 'reg')+('_'+str(self.layer) if self.layer != -1 else '')
         print("SELF.TYPE ", self.type, type(self.type))
         self.from_addl = []
         # *** RECON *** 

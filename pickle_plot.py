@@ -5,7 +5,8 @@ from collections import defaultdict
 import pandas as pd
 import numpy as np
 #fn = 'echo_'
-search_dir = 'results/'
+search_dir = 'results/smalltrain/'
+search_dir = 'results/vae_beta/'
 #recon = 'bce_loss'
 #reg = 'vae'
 #reg = 'mi_echo_z_loss'
@@ -30,7 +31,7 @@ def check_key(fn):
         method = 'echo_mult'
         mi= 'mi_echo'
         val = fn.split('echo')[1][:3]#.split('.')[0] 
-    elif 'additive_1' in fn:
+    elif 'additive_1' or 'additive_' in fn:
         method = 'echo_add'
         mi= 'mi_echo'
         val = fn.split('echo')[1][:3]#.split('.')[0] 
@@ -46,10 +47,12 @@ train_recon = []
 train_reg = []
 recon_over_time = defaultdict(lambda: defaultdict(list))
 for root, dirs, files in os.walk(search_dir): #os.getcwd()):
+    print("root ", root, " dirs ", dirs)
     for fn in files:
-        if 'small_train' in fn:
-            continue
-        print("File ", fn)    
+        print("File ", fn)
+        #if 'smalltrain' not in fn:
+            #continue
+            
         with open(os.path.join(search_dir, fn), "rb") as pkl_data:
             try:
                 results = pickle.load(pkl_data)
@@ -58,7 +61,7 @@ for root, dirs, files in os.walk(search_dir): #os.getcwd()):
         model_type = check_key(fn)
 
         for k in results.keys():
-            print(k)
+            
             if "lagr" in k:
                 try:
                     final_val = results[k][-1][-1]
@@ -69,6 +72,7 @@ for root, dirs, files in os.walk(search_dir): #os.getcwd()):
             else:
                 final_val = results[k]
             loss_key = k.split("/")[0]
+            print(k, " : ", final_val)
             models[model_type][loss_key].append(final_val)
 
 cols = ['method', 'compression', 'bce_train', 'bce_test', 'gap', 'mse_train', 'mse_test', 'gap']
@@ -98,7 +102,7 @@ for method in models.keys():
         rows.append([method, train_reg[i], bce_train[i], bce_test[i], bce_test[i]-bce_train[i], mse_train[i], mse_test[i], mse_test[i]-mse_train[i]])#, index = [df.shape[0]], columns = cols))
 
     #plt.figure()
-    plt.scatter(train_reg[:14], bce_train[:14], label = 'method')
+    plt.scatter(train_reg[:14], bce_train[:14], label = method)
     #plt.title(method)
 plt.legend()
 plt.savefig(str("lagr_plots"+".png"))
