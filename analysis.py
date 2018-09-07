@@ -22,7 +22,8 @@ from collections import defaultdict
 
 # if isinstance( data, Dataset):
 #   data = data.data
-def rd_curve(hist, test = None, legend = None, prefix = ''):
+#def rd_curve(hist, test = None, legend = None, prefix = ''):
+def rd_curve(folder):
     recons = defaultdict(list)
     regs = defaultdict(list)
     lagrs = defaultdict(list)

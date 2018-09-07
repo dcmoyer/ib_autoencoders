@@ -123,6 +123,52 @@ def my_predict(model, data, layer_name, multiple = True):
                         [model.get_layer(layer_name).get_output_at(0)])
         return func([data])[0]
 
+class Echo(Layer):
+  def __init__(self, init = -5., d_max = 50, trainable = False, noise = 'additive', periodic = False):
+      self.init = init
+      self.trainable = trainable
+      self.noise = noise
+      self.d_max = d_max
+      #super([Layer], self).__init__()
+
+  def build(self, input_shape):
+      self.batch = input_shape[0]
+      self.dim = input_shape[1]
+      print("BATCH SIZE ECHO LAYER ", self.batch)
+      if self.trainable:
+        self.cap_param = self.add_weight(name='capacity', 
+                                      shape = (self.dim,),
+                                      initializer= Constant(value = self.init),
+                                      trainable= True)
+      else:
+        self.betas = self.add_weight(name='capacity', 
+                              shape = (self.dim,),
+                              initializer= Constant(value = self.init),
+                              trainable= False)
+      super(Echo, self).build()
+      #super(Beta, self).build(input_shape) 
+
+  def call(self, x):
+    c = K.sigmoid(self.cap_param, name = 'capacity01')
+    inds = permute_neighbor_indices(self.batch, self.d_max)
+    return 
+    #K.repeat_elements(K.expand_dims(self.betas,1), repeat, -1)
+
+  #not used externally
+  def set_beta(self, beta):
+      self.set_weights([np.array([beta])])
+      
+
+  def get_beta(self):
+      return self.get_weights()[0][0]
+
+  def compute_output_shape(self, input_shape):
+      return (1, 1)
+      #(input_shape[0], self.dim)
+
+
+
+
 class Beta(Layer):
   def __init__(self, beta = None, trainable = False, **kwargs):
       self.shape = 1

@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 #fn = 'echo_'
 search_dir = 'results/smalltrain/'
-search_dir = 'results/vae_beta/'
+search_dir = 'results/vae_constrained/'
 #recon = 'bce_loss'
 #reg = 'vae'
 #reg = 'mi_echo_z_loss'
@@ -18,26 +18,26 @@ def check_key(fn):
         method = 'ido'
         mi = 'ido'
     # don't use val
-        val = fn.split('multiplicative')[1].split('.')[0]
+        #val = fn.split('multiplicative')[1].split('.')[0]
     elif 'echoadditive' in fn:
         method = 'vae'
         mi = 'vae'
-        val = fn.split('additive')[1].split('.')[0]   
+        #val = fn.split('additive')[1].split('.')[0]   
     elif 'echoinfovae' in fn:
         method = 'infovae'
         mi = 'vae'
-        val = fn.split('infovae')[1].split('.')[0]
+        #val = fn.split('infovae')[1].split('.')[0]
     elif 'multiplicative_1' in fn:
         method = 'echo_mult'
         mi= 'mi_echo'
-        val = fn.split('echo')[1][:3]#.split('.')[0] 
+        #val = fn.split('echo')[1][:3]#.split('.')[0] 
     elif 'additive_1' or 'additive_' in fn:
         method = 'echo_add'
         mi= 'mi_echo'
-        val = fn.split('echo')[1][:3]#.split('.')[0] 
+        #val = fn.split('echo')[1][:3]#.split('.')[0] 
     elif 'bir_vae' in fn:
         method = 'bir'
-        val = fn.split('echo')[1][:3]#.split('.')[0]
+        #val = fn.split('echo')[1][:3]#.split('.')[0]
     else:
         raise ValueError("cant understand filename") 
     return str(method)#+'_'+val)
@@ -102,7 +102,7 @@ for method in models.keys():
         rows.append([method, train_reg[i], bce_train[i], bce_test[i], bce_test[i]-bce_train[i], mse_train[i], mse_test[i], mse_test[i]-mse_train[i]])#, index = [df.shape[0]], columns = cols))
 
     #plt.figure()
-    plt.scatter(train_reg[:14], bce_train[:14], label = method)
+    plt.scatter(train_reg, bce_train, label = method)
     #plt.title(method)
 plt.legend()
 plt.savefig(str("lagr_plots"+".png"))

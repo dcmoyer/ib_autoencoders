@@ -8,7 +8,7 @@ import copy
 import model
 import subprocess
 import analysis
-from tensorflow import reset_default_graph
+#from tensorflow import reset_default_graph
 
 def nested_dict(d, keys, value):
     for k in keys[:-1]:
@@ -31,6 +31,9 @@ class Session(object):
         self.name = name
         #self.configs = [self.load_config(config)]
         
+        self.config = config if isinstance(config, dict) else self.load_config(config)
+
+        self.parameters = parameters
         # HANDLE MULTIPLE LISTS : change how config initialized, change dict key to tuple
         if parameters is not None:
             self.configs = {}
@@ -44,15 +47,35 @@ class Session(object):
 
         self.run_configs(dataset)
 
-    def run_configs(self, dataset, time ="00:59:59", rd_curves = True):
+    def run_configs(self, dataset, time ="00:59:59"):# rd_curves = True):
         histories = []
         test_results = []
         indices = []
 
+
+        # mkdir
+        folder = os.path.join('results', str(self.name)+'_'+str(dataset.name))
+        #folder = os.path.join('results', str(self.name)+'_'+str(dataset.name)+'_'+self.config.split('.json')[0])
+        if not os.path.exists(folder):
+            os.mkdir(folder)
+            print(os.path.join(folder, "exec"))
+            os.mkdir(os.path.join(folder, "exec"))
+
+        exfilename = os.path.join(folder, "base_config.txt")
+        with open(exfilename, 'w+') as exfile:
+            #exfile.write("#!/usr/bin/env python\n\n")
+            #for imp in set(imports):
+            #    exfile.write("import %s\n" % imp)
+            for st in self.config.keys():
+                exfile.write(st+" : "+str(self.config[st])+"\n")
+
+
+
+        count = 0
         for param, config in self.configs.items():
             print()
             print("PARAM VALUE ", param)
- 
+            
             
             config_str = json.dumps(config).replace("'", '"')
             #sess = tf.Session()
@@ -60,18 +83,42 @@ class Session(object):
             print("config ", config_str)
             print(type(config_str))
             print()
+            # write python file
+            statements = [
+                "#!/bin/bash",
+                "cd /home/rcf-proj/gv/brekelma/autoencoders",
+                "python3 test.py --filename \'{fn}\' --config \'{conf}\' ".format(
+                    name = self.name, param = param, time = time, conf = config_str, fn = os.path.join(folder, str(self.name+'_'+str(param))))
+            ]
+
+            # Write executable
+            exfilename = os.path.join(folder, "exec", "dummy_"+str(count)+".sh")
+            with open(exfilename, 'w+') as exfile:
+                #exfile.write("#!/usr/bin/env python\n\n")
+                #for imp in set(imports):
+                #    exfile.write("import %s\n" % imp)
+                for k in self.parameters.keys():
+                    exfile.write(k+" : "+str(self.parameters[k])+"\n")
+                for st in statements:
+                    exfile.write(st+"\n")
+            os.chmod(exfilename, 0o755)
+
 
             # SBATCH + read pickle?
             cmd = 'sbatch --job-name {name}_{param} --time {time}\
-            --gres=gpu:1 --ntasks=8 --wrap=\'python3 test.py --filename {fn} --config {conf} \''.format(
-                    name = self.name, param = param, time = time, conf = config_str, fn = str(self.name+'_'+str(param)))
+            --gres=gpu:1 --ntasks=8 --wrap="./{folder}/exec/dummy_{ct}.sh"'.format(name = self.name, param = param, time = time, folder = folder, ct = str(count))
+            #\" python3 test.py -filename \'{fn}\' -config \'{conf}\'  \"'.format(
+             #       name = self.name, param = param, time = time, conf = config_str, fn = os.path.join(folder, str(self.name+'_'+str(param))))
 
+            # del python file
+            count = count + 1
             print("Command ", cmd)
             #!/bin/bash                                                                                                                                                       
             #SBATCH --ntasks=8                                                                                                                                                
             #SBATCH --time=00:59:00                                                                                                                                           
             #SBATCH --gres=gpu:1 
             subprocess.call([cmd], shell=True)
+            #os.remove("dummy.sh")
 
 
             # m = model.NoiseModel(dataset, config = config, filename = str(self.name+'_'+str(param)))
@@ -81,8 +128,9 @@ class Session(object):
             # indices.append(param)
             # reset_default_graph()
 
-        if rd_curves:
-            analysis.rd_curve(hist = histories, test = test_results, legend = indices)
+        #if rd_curves:
+       #     analysis.rd_curve(folder)
+                #hist = histories, test = test_results, legend = indices)
 
 
     def load_config(self, config):

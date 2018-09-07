@@ -387,13 +387,24 @@ class NoiseModel(Model):
         except:
             pass
 
-        inps = self.sess.run(self.loss_inputs,
-                    feed_dict={self.input_tensor: x_test})
+        if self.lagrangian_fit:
+            inps = None
+            if K.int_shape(self.input_tensor)[0] is None:
+                for offset in range(0, (int(x_test.shape[0] / self.batch) * self.batch), self.batch):  # inner
+                    batch_data = x_test[offset:(offset + self.batch)]
+                    new_inps = self.sess.run(self.loss_inputs,
+                        feed_dict={self.input_tensor: batch_data})
+                    inps = [inps[i] + new_inps[i] for i in range(len(new_inps))] if inps is not None else new_inps
+                # average each loss over batches
+                inps = [inps[i]/(int(x_test.shape[0]/self.batch)) for i in range(len(new_inps))]
+            else:
+                inps = self.sess.run(self.loss_inputs,
+                        feed_dict={self.input_tensor: x_test})
 
-        for i in range(len(inps)):
-            lv = l.loss_val(self.loss_functions[i]([K.variable(tensor) for tensor in inps[i]])).eval(session=K.get_session())
-            print("Loss ", self.model.metrics_names[i+1], " : ", lv)
-            self.test_results[self.model.metrics_names[i+1]] = lv
+            for i in range(len(inps)):
+                lv = l.loss_val(self.loss_functions[i]([K.variable(tensor) for tensor in inps[i]])).eval(session=K.get_session())
+                print("Test loss ", self.model.metrics_names[i+1], " : ", lv)
+                self.test_results[self.model.metrics_names[i+1]] = lv
         # for i in range(len(self.loss_functions)):
         #     print("loss function ", self.loss_functions[i])
         #     loss_value = self.loss_functions[i](self.loss_inputs[i])
@@ -404,13 +415,13 @@ class NoiseModel(Model):
 
         #plt.imsave(arr = bce_pred[-1, :].reshape((28,28)), fname = str('test.png'))
         #print("BCE test ", l.loss_val(l.binary_crossentropy([K.variable(x_test), K.variable(bce_pred)])).eval(session=K.get_session()))
-        
-        # OLD APPROACH (wrong values for lagrangian)
-        # loss_list = self.model.evaluate(x_test, [x_test]*len(self.model.outputs), batch_size = self.batch)
-        
-        # for i in range(len(loss_list)):
-        #    self.test_results[self.model.metrics_names[i]] = loss_list[i]
-        #    print("Test loss ", self.model.metrics_names[i], " : ", loss_list[i])
+        else:
+            # OLD APPROACH (wrong values for lagrangian)
+            loss_list = self.model.evaluate(x_test, [x_test]*len(self.model.outputs), batch_size = self.batch)
+            
+            for i in range(len(loss_list)):
+                self.test_results[self.model.metrics_names[i]] = loss_list[i]
+                print("Test loss ", self.model.metrics_names[i], " : ", loss_list[i])
 
     def _encoder(self, x = None):
         for i in self.model.layers:
@@ -892,6 +903,7 @@ class NoiseModel(Model):
 
     def save_weights(self, filename):
         self.model.save_weights(filename+'_weights', overwrite=True)
+
 
     def pickle_dump(self):
         fle = open(str(self.filename+".pickle"), "wb")
