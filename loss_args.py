@@ -165,9 +165,13 @@ class Loss(object):
             else:
                 raise NotImplementedError("only sampling and mixture of gaussian estimation of MI is supported.  other ideas?")
 
-        elif "echo" in self.type:
-            self.from_layer = ['addl']
+        elif self.type == "echo":# in self.type:
+            self.from_layer = ['addl'] #['addl']
             return Lambda(l.echo_loss, arguments = self.loss_kwargs, name = 'mi_echo'+name_suffix)
+
+        elif self.type == "echo_var":# in self.type:
+            self.from_layer = ['addl']
+            return Lambda(l.echo_var, arguments = self.loss_kwargs, name = 'echo_var'+name_suffix)
 
         elif self.type == 'bir':
             self.from_layer = ['stat']

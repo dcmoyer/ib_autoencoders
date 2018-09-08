@@ -124,15 +124,19 @@ def my_predict(model, data, layer_name, multiple = True):
         return func([data])[0]
 
 class Echo(Layer):
-  def __init__(self, init = -5., d_max = 50, trainable = False, noise = 'additive', periodic = False):
+  def __init__(self, init = -5., batch = 200, d_max = 50, trainable = False, noise = 'additive', periodic = False, **kwargs):
       self.init = init
       self.trainable = trainable
       self.noise = noise
       self.d_max = d_max
+      self.periodic = periodic
+      self.batch = batch
+      #self.name = name
+      super(Echo, self).__init__(**kwargs)
       #super([Layer], self).__init__()
 
   def build(self, input_shape):
-      self.batch = input_shape[0]
+      #self.batch = input_shape[0]
       self.dim = input_shape[1]
       print("BATCH SIZE ECHO LAYER ", self.batch)
       if self.trainable:
@@ -141,31 +145,71 @@ class Echo(Layer):
                                       initializer= Constant(value = self.init),
                                       trainable= True)
       else:
-        self.betas = self.add_weight(name='capacity', 
+        self.cap_param = self.add_weight(name='capacity', 
                               shape = (self.dim,),
                               initializer= Constant(value = self.init),
                               trainable= False)
-      super(Echo, self).build()
+      super(Echo, self).build(input_shape)
       #super(Beta, self).build(input_shape) 
 
-  def call(self, x):
-    c = K.sigmoid(self.cap_param, name = 'capacity01')
+  def call(self, z_mean):
+    #print("Z mean type ", z_mean)
+    #z_mean = z_mean[0]
+    def permute_neighbor_indices(batch_size, d_max=-1):
+      """Produce an index tensor that gives a permuted matrix of other samples in batch, per sample.
+      Parameters
+      ----------
+      batch_size : int
+          Number of samples in the batch.
+      d_max : int
+          The number of blocks, or the number of samples to generate per sample.
+      """
+      if d_max < 0:
+          d_max = batch_size + d_max
+      #assert d_max < batch_size, "d_max < batch_size, integers. Strictly less."
+      inds = []
+      for i in range(batch_size):
+          sub_batch = list(range(batch_size))
+          sub_batch.pop(i)
+          shuffle(sub_batch)
+          # inds.append(list(enumerate([i] + sub_batch[:d_max])))
+          inds.append(list(enumerate(sub_batch[:d_max])))
+      return inds
+
+    c = K.sigmoid(self.cap_param)#, name = 'capacity0-1')
     inds = permute_neighbor_indices(self.batch, self.d_max)
-    return 
+
+
+    if self.periodic:
+      c_z_stack = tf.stack([tf.cos(k * phi) * tf.pow(c, k) * z_mean for k in range(self.d_max)])
+    else:
+      c_z_stack = tf.stack([tf.pow(c, k) * z_mean for k in range(self.d_max)])  # no phase
+    
+
+    noise = tf.gather_nd(c_z_stack, inds)
+    noise = tf.reduce_sum(noise, axis=1)  # Sums over d_max terms in sum
+    noise -= tf.reduce_mean(noise, axis=0)
+
+    print('encoder ', z_mean)
+    print('c ', c)
+    print('noise ', noise)
+    if self.noise == 'multiplicative':
+        noisy_encoder = tf.exp(z_mean + c*noise)# #z_mean * tf.exp(c * noise)
+    else:
+        noisy_encoder = z_mean + c * noise
+
+    noisy_encoder.set_shape(K.int_shape(z_mean))
+    #self.cap_param.set_shape()
+
+    return [noisy_encoder, self.cap_param] 
     #K.repeat_elements(K.expand_dims(self.betas,1), repeat, -1)
 
-  #not used externally
-  def set_beta(self, beta):
-      self.set_weights([np.array([beta])])
-      
-
-  def get_beta(self):
-      return self.get_weights()[0][0]
-
   def compute_output_shape(self, input_shape):
-      return (1, 1)
+      return [input_shape, K.int_shape(self.cap_param)]
       #(input_shape[0], self.dim)
 
+  def get_cap_param(self):
+      return self.cap_param
 
 
 

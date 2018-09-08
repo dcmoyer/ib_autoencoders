@@ -74,13 +74,14 @@ class Layer(object):
                 if samp == 0:   
                     # slightly different here... layer_kwargs used for echo / lambda
                     z_mean = Dense(self.latent_dim, activation='linear', name='z_mean'+name_suffix)# **self.layer_kwargs)
-                    z_act = Lambda(layers.echo_sample, name = 'z_act_'+name_suffix, arguments = self.layer_kwargs)
-                    capacity = Lambda(layers.echo_capacity, name = 'capacity'+name_suffix, arguments = {'init': self.layer_kwargs['init']})#, 'batch': self.layer_kwargs['batch']})
+                    z_act = layers.Echo(**self.layer_kwargs)
+                    #z_act = Lambda(layers.echo_sample, name = 'z_act_'+name_suffix, arguments = self.layer_kwargs)
+                    #capacity = Lambda(layers.echo_capacity, name = 'capacity'+name_suffix, arguments = {'init': self.layer_kwargs['init']})#, 'batch': self.layer_kwargs['batch']})
                 # note: k = 1 if k used as d_max, otherwise will have k separate layer calls
                 # tf.get_variable  self.layer_kwargs['init']
                 stats_list.append([z_mean])
                 act_list.append(z_act)
-                addl_list.append(capacity)
+                addl_list.append(z_act)
 
             elif self.type in ['bir', 'constant_additive']:
                 if samp == 0:   

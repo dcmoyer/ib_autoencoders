@@ -49,7 +49,32 @@ def mmd_loss(inputs, gaussian = True):
     mmd = tf.reduce_mean(q_kernel) + tf.reduce_mean(p_kernel) - 2 * tf.reduce_mean(qp_kernel)
     return tf.expand_dims(tf.expand_dims(mmd, 0), 1)
 
+def echo_var(inputs, d_max = 50):
+    print("INPUTS: ", inputs)
+    if isinstance(inputs, list):
+        cap_param = inputs[0]
+    else:
+        cap_param = inputs
+
+    min_capacity = 16.0 / d_max # d_max ... don't have access to d_max to actually pass
+    # compare to what Greg's implementation calculates for D, s.b. easy to verify
+
+    #capacities = tf.identity(tf.nn.softplus(-cap_param) - np.log(self.c_min), name='capacities')
+    capacities = tf.nn.softplus(- cap_param) #tf.identity(tf.nn.softplus(- cap_param), name='capacities') #tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
+    #cap = tf.reduce_sum(capacities, name="capacity")
+    print("Capacities ", capacities)
+    cap = K.var(capacities, axis = 0, keepdims = True)
+    return tf.expand_dims(cap, 1) #tf
+
 def echo_loss(inputs, d_max = 50):
+    echo_layer = inputs[0]
+    print("Get weights ", echo_layer)
+    cap_param = echo_layer.get_weights()[0]#get_cap_param()
+    capacities = tf.nn.softplus(- cap_param) #tf.identity(tf.nn.softplus(- cap_param), name='capacities') #tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
+    cap = tf.reduce_sum(capacities, name="capacity")
+    return tf.expand_dims(tf.expand_dims(cap,0), 1)
+
+def echo_loss2(inputs, d_max = 50):
     print("INPUTS: ", inputs)
     cap_param = inputs[0]
     min_capacity = 16.0 / d_max # d_max ... don't have access to d_max to actually pass
@@ -58,7 +83,7 @@ def echo_loss(inputs, d_max = 50):
     #capacities = tf.identity(tf.nn.softplus(-cap_param) - np.log(self.c_min), name='capacities')
     capacities = tf.nn.softplus(- cap_param) #tf.identity(tf.nn.softplus(- cap_param), name='capacities') #tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
     cap = tf.reduce_sum(capacities, name="capacity")
-    return tf.expand_dims(cap, 0) #tf.expand_dims(tf.expand_dims(cap,0), 1)
+    return tf.expand_dims(tf.expand_dims(cap,0), 1)
 
 def dim_sum(true, tensor):
     #print('DIMSUM TRUE ', _true)

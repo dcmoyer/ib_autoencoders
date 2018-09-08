@@ -381,22 +381,26 @@ class NoiseModel(Model):
         #preds = self.sess.run(self.model.outputs,
         #            feed_dict={self.input_tensor: x_test})
         
-        print("INPUT TENSOR SHAPE ", self.input_tensor)
         try:
-            print(K.int_shape(self.input_tensor))
+            find_recon = [i for i in range(len(self.model.metrics_names)) if 'recon' in self.model.metrics_names[i]]
+            print("Output TENSOR SHAPE : ", K.int_shape(self.model.outputs[find_recon[0]]))
         except:
-            pass
+            find_recon = [-1]
 
         if self.lagrangian_fit:
             inps = None
-            if K.int_shape(self.input_tensor)[0] is None:
+            
+            if K.int_shape(self.model.outputs[find_recon[0]])[0] is None:
                 for offset in range(0, (int(x_test.shape[0] / self.batch) * self.batch), self.batch):  # inner
                     batch_data = x_test[offset:(offset + self.batch)]
                     new_inps = self.sess.run(self.loss_inputs,
                         feed_dict={self.input_tensor: batch_data})
-                    inps = [inps[i] + new_inps[i] for i in range(len(new_inps))] if inps is not None else new_inps
+                    #print("new inps ", type(new_inps), " len ", len(new_inps), ": ", [type(new_inps[i]) for i in range(len(new_inps))])
+                    inps = [[tf.concat([inps[i][j], new_inps[i][j]], axis = 0) for j in range(len(inps[i]))] for i in range(len(inps))] if inps is not None else new_inps
+                    #inps = [inps[i] + new_inps[i] for i in range(len(new_inps))] if inps is not None else new_inps
+                    #("inps shape ", inps[0][0].shape, inps[1][0].shape, inps[2][0].shape)#, inps[3][0].shape)
                 # average each loss over batches
-                inps = [inps[i]/(int(x_test.shape[0]/self.batch)) for i in range(len(new_inps))]
+                #inps = [[inps[i][j]/(int(x_test.shape[0]/self.batch)) for j in range(len(inps[i]))] for i in range(len(inps))]
             else:
                 inps = self.sess.run(self.loss_inputs,
                         feed_dict={self.input_tensor: x_test})
@@ -523,14 +527,14 @@ class NoiseModel(Model):
                     lyr = loss.layer 
                      
                     #  'stat' or 'act' for enc/dec layer # lyr
-                    if 'act' in inputs_layer[j] or 'addl' in inputs_layer[j]:# == 'act':
+                    if 'act' in inputs_layer[j] or 'addl' in inputs_layer[j]:
                         #if not loss.encoder and lyr in [-1, len(self.decoder_dims)-1]:
                         #    layers[lyr]['act'].insert(0, self.recon_true)
                         outputs.extend(layers[lyr][inputs_layer[j]])
                     elif 'stat' in inputs_layer[j]:
                         print('adding stat from ', layers[lyr], 'choosing lyr_arg', inputs_layer[j])
                         outputs.extend(layers[lyr][inputs_layer[j]][0])
-                print('outputs for layer ', outputs)
+                print('outputs for layer ', outputs, "( ", layers[lyr], ":", inputs_layer[j], ")")
                 for j in range(len(inputs_output)):
                     layers = self.decoder_layers
                     lyr = loss.output
@@ -711,6 +715,13 @@ class NoiseModel(Model):
                 if isinstance(current_call, list):
                     current = current_call[k] if len(current_call) > 1 else current_call[0]
                 
+                if isinstance(current, list):
+                        print("current ", current)
+                        #print(current[0])
+                        #print(current[1])
+                        current = current[0] # hack for echo
+                        self.encoder_layers[-1]['addl'].append(current[0])
+
                 print("CURRENT (i.e. prev layer) ", current, current_call)
                 a = act_lyr(current)
                 layers_list[layer_ind]['act'].append(a)
@@ -769,7 +780,11 @@ class NoiseModel(Model):
         for i in range(len(self.constraints)):
             constraint = self.constraints[i]
             init = self.model_loss_weights[constraint['loss']]*1.0
-            sign = -1 if 'geq' in constraint['relation'] or 'greater' in constraint['relation'] else 1
+            try:
+                sign = -1 if 'geq' in constraint['relation'] or 'greater' in constraint['relation'] else 1
+            except:
+                sign = 1
+
             multiplier = tf.get_variable("lagr_"+str(i), initializer = init*sign, dtype = tf.float32)#, name = ) 
             loss_tensor = self.model.outputs[constraint['loss']] #_losses[constraint['loss']]
             
