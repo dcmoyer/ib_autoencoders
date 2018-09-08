@@ -154,6 +154,8 @@ class Echo(Layer):
 
   def call(self, z_mean):
     #print("Z mean type ", z_mean)
+    if isinstance(z_mean, list):
+      z_mean = z_mean[0]
     #z_mean = z_mean[0]
     def permute_neighbor_indices(batch_size, d_max=-1):
       """Produce an index tensor that gives a permuted matrix of other samples in batch, per sample.

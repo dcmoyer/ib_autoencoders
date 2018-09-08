@@ -740,7 +740,7 @@ class NoiseModel(Model):
                 print("done calling")
                 layers_list[layer_ind]['addl'].append(a)
                 print("appended")
-
+                print("ADDL for last LAYER ", layers_list[layer_ind]['addl'])
                 #for new, prev in zip(act_lyr, current_call):
                 #layers_list[layer_ind]['act'].append(act_lyr(current))
 
