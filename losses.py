@@ -68,8 +68,7 @@ def echo_var(inputs, d_max = 50):
 
 def echo_loss(inputs, d_max = 50):
     echo_layer = inputs[0]
-    print("Get weights ", echo_layer)
-    cap_param = echo_layer.get_weights()[0]#get_cap_param()
+    cap_param = echo_layer #.get_weights()[0]#get_cap_param()
     capacities = tf.nn.softplus(- cap_param) #tf.identity(tf.nn.softplus(- cap_param), name='capacities') #tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
     cap = tf.reduce_sum(capacities, name="capacity")
     return tf.expand_dims(tf.expand_dims(cap,0), 1)

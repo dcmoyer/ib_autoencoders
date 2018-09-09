@@ -1,10 +1,10 @@
 {
-	"epochs": 10,
+	"epochs": 5,
 	"batch": 200,
 	"optimizer": "Adam",
 	"optimizer_params": {}, 
 	"lr": 0.001,
-	"encoder_dims": [200, 200, 50],
+	"encoder_dims": [200, 100, 2],
 	"decoder_dims": null,
 	"layers": 
 		[{
@@ -14,9 +14,9 @@
 			"k": 1,
 			"layer_kwargs":{
 				"d_max": 50,
-				"init": 2.438,
+				"init": -5,
 				"noise": "additive",
-				"trainable": true
+				"trainable": false
 			}
 		}], 
 	"initializer": "glorot_uniform",

@@ -19,36 +19,153 @@ import os
 from sklearn.cross_validation import cross_val_score
 from scipy.special import entr
 from collections import defaultdict
+import pickle
 
 # if isinstance( data, Dataset):
 #   data = data.data
 #def rd_curve(hist, test = None, legend = None, prefix = ''):
-def rd_curve(folder):
+def rd_curve(folder, beta = False, savefig = True):
     recons = defaultdict(list)
     regs = defaultdict(list)
     lagrs = defaultdict(list)
-    offset = .1
-    for loss_run in hist:
-        for loss in loss_run.keys():
-            if 'recon' in loss:
-                recons[loss].append(loss_run[loss][-1])
-            elif 'reg' in loss:
-                regs[loss].append(loss_run[loss][-1])
-            elif 'lagr' in loss:
-                lagrs[loss].append(loss_run[loss][-1])
+    test_recons = defaultdict(list)
+    test_regs = defaultdict(list)
+    test_lagrs = defaultdict(list)
+    param_idx = []
+    offset = 2
+    print("RD For folder ", folder)
+    models = defaultdict(lambda: defaultdict(list))
+    recon_over_time = defaultdict(lambda: defaultdict(list))
+    print(os.path.join(os.getcwd(), folder))
+    for root, dirs, files in os.walk(os.path.join(os.getcwd(), folder)): #os.getcwd()):
+        #print("root ", root)
+        #print("dirs ", dirs)
+        #print("files ", files)
+        for fn in files:
+        #print("File ", fn)
+            if ".pickle" in fn:
+                prefix = fn.split(".pickle")[0].split("_")[:2]
+                param = fn.split(".pickle")[0]
+                print("multiplicative? ", len(param.split("multiplicative")[-1]))
+                mult = 0 if len(param.split("multiplicative")[-1])<1 else -1
+                add = -1 if len(param.split("additive")[0]) >= len(param.split("additive")[-1]) else 0 #or len(param.split("additive")[-1])>0
+                param = fn.split(".pickle")[0].split("additive")[add].split("multiplicative")[mult].split("_")[-1]
+                #print(fn.split(".pickle")[0])
+                #print(fn.split(".pickle")[0].split("additive")[-1])
+                #print(fn.split(".pickle")[0].split("additive")[-1].split("multiplicative")[-1])
+                #print(fn.split(".pickle")[0].split("additive")[-1].split("multiplicative")[-1].split("_")[-1])
+                param_idx.append(param)
+                #print("prefix : ", prefix)
+                #print(fn)
+
+                with open(os.path.join(os.getcwd(), folder, fn), "rb") as pkl_data:
+                    try:
+                        results = pickle.load(pkl_data)
+                    except:
+                        print("Could not open ", fn)
+                        continue
+                    #print(list(results.keys()))
+                    for loss in results.keys():
+                        k = loss.split("/")[0]
+                        #print(loss)
+                        if 'test' not in loss:
+                            if 'recon' in loss:
+                                recons[k].append(results[loss][-1] if 'test' not in loss else results[loss])
+                                try:
+                                    test_recons[k].append(results[str('test_'+loss)])
+                                except:
+                                    test_recons[k].append(results[str('test_'+k+'_loss')])
+                            elif 'reg' in loss:
+                                regs[k].append(results[loss][-1] if 'test' not in loss else results[loss])
+                                try:
+                                    test_regs[k].append(results[str('test_'+loss)])
+                                except:
+                                    test_regs[k].append(results[str('test_'+k+'_loss')])
+
+                            elif 'lagr' in loss:
+                                if 'test' in loss:
+                                    warn('*** TEST LAGRANGIAN EXISTS **** for ', fn)
+                                lagrs[k].append(results[loss][-1] if 'test' not in loss else results[loss])
+                                #test_lagrs[loss].append(results[str('test_'+loss)])
+    csv_str=''
+    print("Params ", param_idx)
+    # rows = increasing param value
+    for i in sorted(range(len(param_idx)), key=lambda k: param_idx[k]): #range(len(param_idx)):
+        # headers
+        if csv_str=='':
+            #print("len params ", len(param_idx))
+            csv_str = "{} \n".format(fn)
+            csv_str += 'Param \t'
+            for k in regs.keys():
+                csv_str += "{} \t".format(k.split('_')[:-2]) #k.split('loss')[:-2]
+            for k in recons.keys():
+                csv_str += "{} \t".format(k.split('_')[:-2])
+                csv_str += "test_{} \t".format(k.split('_')[:-2])
+            for k in lagrs.keys():
+                csv_str += "{} \t".format(k.split('_')[:-2])
+                #csv_str += "test_{} \t".format(k)
+        csv_str += "\n"
+        csv_str += '{} \t'.format(param_idx[i])
+        # columns
+        for k in regs.keys():
+            csv_str += "{} \t".format(round(regs[k][i],2))
+        for k in recons.keys():
+            csv_str += "{} \t".format(round(recons[k][i],2))
+            csv_str += "{} \t".format(round(test_recons[k][i]),2)
+        for k in lagrs.keys():
+            csv_str += "{} \t".format(round(lagrs[k][i]),2)
+
+        csv_str += "\n"
+
+        #knn_results += "Echo,\t\t{:0.4f}\n".format(knn_score)
+        with open('{}/results.txt'.format(folder), 'w') as f:
+            f.write(csv_str)
+        #csv.write(param_idx[i], regs[k][i] for k in regs.keys(), recons[k][i] for k in recons.keys())
+
     for reg in regs.keys():
         for recon in recons.keys():
-            plt.figure()
-            plt.scatter(regs[reg], recons[recon])
+            if 'beta' in fn or beta:
+                val, idx = min((val, idx) for (idx, val) in enumerate(param_idx))
+            else: # constrainted optimization, maximal regularizer
+                val, idx = max((val, idx) for (idx, val) in enumerate(param_idx))
+
+            #val, idx = min((val, idx) for (idx, val) in enumerate(recons[recon]))
+            print('AE idx ', recon, ' : ', idx, ' , ', val, ' : test recon len ', len(test_recons[recon]))
+            print('reg: ', reg, ' other keys: ', list(regs.keys()))
+            print('regs len ', len(regs[reg]), ' recons len ', len(recons[recon]))
+            
+            plt.figure(figsize=(15,15))
+            plt.title(str("Train/Test "+ recon))
+            # scatter except for minimum recon => dotted line
+
+            try:
+                plt.axhline(y= recons[recon][idx], color = 'b', linestyle='-', label = str('train_AE (param '+ str(round(float(val),0))+')'))
+                plt.axhline(y= test_recons[recon][idx], color = 'r', linestyle='-', label= str('test_AE (param '+ str(round(float(val),0))+')'))
+            except:
+                plt.axhline(y= recons[recon][idx], color = 'b', linestyle='-', label = 'train_AE')
+                plt.axhline(y= test_recons[recon][idx], color = 'r', linestyle='-', label= 'test_AE')
+          
+            plt.scatter([regs[reg][i] for i in range(len(regs[reg])) if i != idx], 
+                [recons[recon][i] for i in range(len(recons[recon])) if i != idx])
+            plt.scatter([test_regs[reg][i] for i in range(len(test_regs[reg])) if i != idx], 
+                [test_recons[recon][i] for i in range(len(test_recons[recon])) if i != idx])
+
+            plt.legend()
             for i in range(len(regs[reg])):
-                plt.annotate(str(round(indices[i],2)), xy=(regs[reg]+offset, recons[recon]+offset))
-            plt.savefig(str(prefix)+'_'+recon+'_'+reg+'.pdf', bbox_inches='tight')
+                plt.annotate(str(round(float(param_idx[i]),1)), xy=(regs[reg][i]-offset, recons[recon][i]-offset), size = 'large')
+            
+
+            plt.savefig(os.path.join(folder, str(*recon.split('loss')[:-1])+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
+            
+    
+
         for lagr in lagrs.keys():
             plt.figure()
             plt.scatter(regs[reg], lagrs[lagr])
+            #plt.scatter(test_regs[reg], lagrs[])
             for i in range(len(regs[reg])):
-                plt.annotate(str(round(indices[i], 2)), xy=(regs[reg]+offset, lagrs[lagr]+offset))
-            plt.savefig(str(prefix)+'_'+lagr+'_'+reg+'.pdf', bbox_inches='tight')
+                plt.annotate(str(round(float(param_idx[i]),1)), xy=(regs[reg][i]+offset, lagrs[lagr][i]+offset))
+            plt.savefig(os.path.join(folder, lagr+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
     #legend = param values
 
 

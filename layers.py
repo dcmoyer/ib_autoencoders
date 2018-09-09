@@ -124,10 +124,12 @@ def my_predict(model, data, layer_name, multiple = True):
         return func([data])[0]
 
 class Echo(Layer):
-  def __init__(self, init = -5., batch = 200, d_max = 50, trainable = False, noise = 'additive', periodic = False, **kwargs):
+  def __init__(self, init = -5., batch = 200, d_max = 50, trainable = False, noise = 'additive', multiplicative = False, periodic = False, **kwargs):
       self.init = init
       self.trainable = trainable
-      self.noise = noise
+
+      self.noise = noise if not (multiplicative and noise == "additive") else 'multiplicative'
+
       self.d_max = d_max
       self.periodic = periodic
       self.batch = batch
@@ -202,15 +204,16 @@ class Echo(Layer):
 
     noisy_encoder.set_shape(K.int_shape(z_mean))
     #self.cap_param.set_shape()
-
-    return [noisy_encoder, self.cap_param] 
+    return noisy_encoder
+    #return [noisy_encoder, self.cap_param] 
     #K.repeat_elements(K.expand_dims(self.betas,1), repeat, -1)
 
   def compute_output_shape(self, input_shape):
-      return [input_shape, K.int_shape(self.cap_param)]
+      return input_shape
+      #return [input_shape, K.int_shape(self.cap_param)]
       #(input_shape[0], self.dim)
 
-  def get_cap_param(self):
+  def get_capacity(self, x):
       return self.cap_param
 
 

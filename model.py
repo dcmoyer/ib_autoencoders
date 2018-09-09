@@ -349,20 +349,22 @@ class NoiseModel(Model):
         # how to get activation layers?
         examples = x_train[:self.batch]
         z = self._encoder(x = examples)
-        
+        x_pred = self._decoder(z)         
 
-        #means = K.mean(z, axis = 0)
-        #sigs = K.sqrt(K.var(z, axis = 0))
+        print("z: ", type(z))
+        means = np.mean(z, axis = 0)
+        sigs = np.sqrt(np.var(z, axis = 0))
 
+        analysis.plot_traversals(examples, 
+                        self._encoder(), 
+                        self._decoder(),
+                        z_act = z,
+                        imgs = 3,
+                        means = means,
+                        sigmas = sigs)
 
-
-        # analysis.plot_traversals(examples, 
-        #                 self._encoder(), 
-        #                 self._decoder(),
-        #                 z_act = z,
-        #                 imgs = 3)#,
-                        #means = means,
-                        #sigs = sigs)
+        analysis.manifold(z, x_pred, per_dim = 50, dims = self.dataset.dims)
+        analysis.two_d_labeled(x_train, y_train, encoder, batch = self.batch, prefix = self.filename)
 
         #tf_mod(kz, x_out, sess), top = latent_dims[-1], prefix = os.path.join(os.path.dirname(os.path.realpath(__file__)), log_path, '_'), z_act = z_acts, means= means, sigmas = sigs, imgs = p)
 
@@ -429,7 +431,7 @@ class NoiseModel(Model):
 
     def _encoder(self, x = None):
         for i in self.model.layers:
-            if 'z_act' in i.name:
+            if 'z_act' or 'echo' in i.name:
                 final_latent = i.name
 
         get_z = K.function([self.model.layers[0].get_input_at(0)], [
@@ -437,6 +439,7 @@ class NoiseModel(Model):
         return get_z if x is None else get_z([x])[0]
 
     def _encoder_stats(self, x = None):
+        # CHANGES FOR ECHO
         for i in self.model.layers:
             if 'z_mean' in i.name:
                 mean_latent = i.name
@@ -455,7 +458,7 @@ class NoiseModel(Model):
 
     def _decoder(self, x = None):
         for i in self.model.layers:
-            if 'z_act' in i.name:
+            if 'z_act' or 'echo' in i.name:
                 final_latent = i.name
 
         z_inp = Input(shape = (self.encoder_dims[-1],))
@@ -531,10 +534,12 @@ class NoiseModel(Model):
                         #if not loss.encoder and lyr in [-1, len(self.decoder_dims)-1]:
                         #    layers[lyr]['act'].insert(0, self.recon_true)
                         outputs.extend(layers[lyr][inputs_layer[j]])
+                        print("*** adding (act/addl) ", layers[lyr][inputs_layer[j]])
+                        print(layers[lyr][inputs_layer[j]])
                     elif 'stat' in inputs_layer[j]:
                         print('adding stat from ', layers[lyr], 'choosing lyr_arg', inputs_layer[j])
                         outputs.extend(layers[lyr][inputs_layer[j]][0])
-                print('outputs for layer ', outputs, "( ", layers[lyr], ":", inputs_layer[j], ")")
+                #print('outputs for layer ', outputs, "( ", layers[lyr], ":", inputs_layer[j], ")")
                 for j in range(len(inputs_output)):
                     layers = self.decoder_layers
                     lyr = loss.output
@@ -715,15 +720,17 @@ class NoiseModel(Model):
                 if isinstance(current_call, list):
                     current = current_call[k] if len(current_call) > 1 else current_call[0]
                 
-                if isinstance(current, list):
-                        print("current ", current)
-                        #print(current[0])
-                        #print(current[1])
-                        current = current[0] # hack for echo
-                        self.encoder_layers[-1]['addl'].append(current[0])
+                # echo_flag = False
+                # if isinstance(current, list):
+                #         print("**** current ", current)
+                #         #print(current[0])
+                #         #print(current[1])
+                #         echo_flag = True
+                #         current = current[0] # hack for echo
+                #         self.encoder_layers[-1]['addl'].append(current)
 
                 print("CURRENT (i.e. prev layer) ", current, current_call)
-                a = act_lyr(current)
+                a = act_lyr(current) # if not echo_flag else act_lyr(current)[0]
                 layers_list[layer_ind]['act'].append(a)
 
             for k in range(len(addl_k)):
