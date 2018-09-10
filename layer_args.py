@@ -75,6 +75,8 @@ class Layer(object):
                     # slightly different here... layer_kwargs used for echo / lambda
                     z_mean = Dense(self.latent_dim, activation='linear', name='z_mean'+name_suffix)# **self.layer_kwargs)
                     z_act = layers.Echo(**self.layer_kwargs)
+                    z_act.trainable = self.layer_kwargs['trainable']
+                    print("Trainable ? ", z_act.trainable, self.layer_kwargs['trainable'], z_act)
                     #z_act = Lambda(layers.echo_sample, name = 'z_act_'+name_suffix, arguments = self.layer_kwargs)
                     capacity = Lambda(z_act.get_capacity, name = 'capacity'+name_suffix)
                     #capacity = Lambda(layers.echo_capacity, name = 'capacity'+name_suffix, arguments = {'init': self.layer_kwargs['init']})#, 'batch': self.layer_kwargs['batch']})

@@ -1,10 +1,10 @@
 """Utilities for visualizing Keras autoencoders."""
 import matplotlib
+matplotlib.use('Agg')
 # Force matplotlib to not use any Xwindows backend.
 import sys
 #sys.path.insert(0, '../three-letter-mnist/')
 #import emnist_words
-matplotlib.use('Agg')
 import utils
 import numpy as np
 import matplotlib.pyplot as plt
@@ -24,149 +24,170 @@ import pickle
 # if isinstance( data, Dataset):
 #   data = data.data
 #def rd_curve(hist, test = None, legend = None, prefix = ''):
-def rd_curve(folder, beta = False, savefig = True):
-    recons = defaultdict(list)
-    regs = defaultdict(list)
-    lagrs = defaultdict(list)
-    test_recons = defaultdict(list)
-    test_regs = defaultdict(list)
-    test_lagrs = defaultdict(list)
-    param_idx = []
+def rd_curve(folders, beta = False, savefig = True):
+    recons = defaultdict(lambda: defaultdict(list))
+    regs = defaultdict(lambda: defaultdict(list))
+    lagrs = defaultdict(lambda: defaultdict(list))
+    test_recons = defaultdict(lambda: defaultdict(list))
+    test_regs = defaultdict(lambda: defaultdict(list))
+    test_lagrs = defaultdict(lambda: defaultdict(list))
+    param_inds = defaultdict(list)
     offset = 2
-    print("RD For folder ", folder)
+    
     models = defaultdict(lambda: defaultdict(list))
     recon_over_time = defaultdict(lambda: defaultdict(list))
-    print(os.path.join(os.getcwd(), folder))
-    for root, dirs, files in os.walk(os.path.join(os.getcwd(), folder)): #os.getcwd()):
-        #print("root ", root)
-        #print("dirs ", dirs)
-        #print("files ", files)
-        for fn in files:
-        #print("File ", fn)
-            if ".pickle" in fn:
-                prefix = fn.split(".pickle")[0].split("_")[:2]
-                param = fn.split(".pickle")[0]
-                print("multiplicative? ", len(param.split("multiplicative")[-1]))
-                mult = 0 if len(param.split("multiplicative")[-1])<1 else -1
-                add = -1 if len(param.split("additive")[0]) >= len(param.split("additive")[-1]) else 0 #or len(param.split("additive")[-1])>0
-                param = fn.split(".pickle")[0].split("additive")[add].split("multiplicative")[mult].split("_")[-1]
-                #print(fn.split(".pickle")[0])
-                #print(fn.split(".pickle")[0].split("additive")[-1])
-                #print(fn.split(".pickle")[0].split("additive")[-1].split("multiplicative")[-1])
-                #print(fn.split(".pickle")[0].split("additive")[-1].split("multiplicative")[-1].split("_")[-1])
-                param_idx.append(param)
-                #print("prefix : ", prefix)
-                #print(fn)
-
-                with open(os.path.join(os.getcwd(), folder, fn), "rb") as pkl_data:
-                    try:
-                        results = pickle.load(pkl_data)
-                    except:
-                        print("Could not open ", fn)
-                        continue
-                    #print(list(results.keys()))
-                    for loss in results.keys():
-                        k = loss.split("/")[0]
-                        #print(loss)
-                        if 'test' not in loss:
-                            if 'recon' in loss:
-                                recons[k].append(results[loss][-1] if 'test' not in loss else results[loss])
-                                try:
-                                    test_recons[k].append(results[str('test_'+loss)])
-                                except:
-                                    test_recons[k].append(results[str('test_'+k+'_loss')])
-                            elif 'reg' in loss:
-                                regs[k].append(results[loss][-1] if 'test' not in loss else results[loss])
-                                try:
-                                    test_regs[k].append(results[str('test_'+loss)])
-                                except:
-                                    test_regs[k].append(results[str('test_'+k+'_loss')])
-
-                            elif 'lagr' in loss:
-                                if 'test' in loss:
-                                    warn('*** TEST LAGRANGIAN EXISTS **** for ', fn)
-                                lagrs[k].append(results[loss][-1] if 'test' not in loss else results[loss])
-                                #test_lagrs[loss].append(results[str('test_'+loss)])
-    csv_str=''
-    print("Params ", param_idx)
-    # rows = increasing param value
-    for i in sorted(range(len(param_idx)), key=lambda k: param_idx[k]): #range(len(param_idx)):
-        # headers
-        if csv_str=='':
-            #print("len params ", len(param_idx))
-            csv_str = "{} \n".format(fn)
-            csv_str += 'Param \t'
-            for k in regs.keys():
-                csv_str += "{} \t".format(k.split('_')[:-2]) #k.split('loss')[:-2]
-            for k in recons.keys():
-                csv_str += "{} \t".format(k.split('_')[:-2])
-                csv_str += "test_{} \t".format(k.split('_')[:-2])
-            for k in lagrs.keys():
-                csv_str += "{} \t".format(k.split('_')[:-2])
-                #csv_str += "test_{} \t".format(k)
-        csv_str += "\n"
-        csv_str += '{} \t'.format(param_idx[i])
-        # columns
-        for k in regs.keys():
-            csv_str += "{} \t".format(round(regs[k][i],2))
-        for k in recons.keys():
-            csv_str += "{} \t".format(round(recons[k][i],2))
-            csv_str += "{} \t".format(round(test_recons[k][i]),2)
-        for k in lagrs.keys():
-            csv_str += "{} \t".format(round(lagrs[k][i]),2)
-
-        csv_str += "\n"
-
-        #knn_results += "Echo,\t\t{:0.4f}\n".format(knn_score)
-        with open('{}/results.txt'.format(folder), 'w') as f:
-            f.write(csv_str)
-        #csv.write(param_idx[i], regs[k][i] for k in regs.keys(), recons[k][i] for k in recons.keys())
-
-    for reg in regs.keys():
-        for recon in recons.keys():
-            if 'beta' in fn or beta:
-                val, idx = min((val, idx) for (idx, val) in enumerate(param_idx))
-            else: # constrainted optimization, maximal regularizer
-                val, idx = max((val, idx) for (idx, val) in enumerate(param_idx))
-
-            #val, idx = min((val, idx) for (idx, val) in enumerate(recons[recon]))
-            print('AE idx ', recon, ' : ', idx, ' , ', val, ' : test recon len ', len(test_recons[recon]))
-            print('reg: ', reg, ' other keys: ', list(regs.keys()))
-            print('regs len ', len(regs[reg]), ' recons len ', len(recons[recon]))
-            
-            plt.figure(figsize=(15,15))
-            plt.title(str("Train/Test "+ recon))
-            # scatter except for minimum recon => dotted line
-
-            try:
-                plt.axhline(y= recons[recon][idx], color = 'b', linestyle='-', label = str('train_AE (param '+ str(round(float(val),0))+')'))
-                plt.axhline(y= test_recons[recon][idx], color = 'r', linestyle='-', label= str('test_AE (param '+ str(round(float(val),0))+')'))
-            except:
-                plt.axhline(y= recons[recon][idx], color = 'b', linestyle='-', label = 'train_AE')
-                plt.axhline(y= test_recons[recon][idx], color = 'r', linestyle='-', label= 'test_AE')
-          
-            plt.scatter([regs[reg][i] for i in range(len(regs[reg])) if i != idx], 
-                [recons[recon][i] for i in range(len(recons[recon])) if i != idx])
-            plt.scatter([test_regs[reg][i] for i in range(len(test_regs[reg])) if i != idx], 
-                [test_recons[recon][i] for i in range(len(test_recons[recon])) if i != idx])
-
-            plt.legend()
-            for i in range(len(regs[reg])):
-                plt.annotate(str(round(float(param_idx[i]),1)), xy=(regs[reg][i]-offset, recons[recon][i]-offset), size = 'large')
-            
-
-            plt.savefig(os.path.join(folder, str(*recon.split('loss')[:-1])+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
-            
+    #print(os.path.join(os.getcwd(), folder))
+    if not isinstance(folders, list):
+        folders = [folders]   
     
+    for folder in folders:
+        print("RD For folder ", folder)
+        for root, dirs, files in os.walk(os.path.join(os.getcwd(), folder)): #os.getcwd()):
+            #print("root ", root)
+            #print("dirs ", dirs)
+            #print("files ", files)
+            for fn in files:
+            #print("File ", fn)
+                if ".pickle" in fn:
+                    prefix = fn.split(".pickle")[0].split("_")[:2]
+                    param = fn.split(".pickle")[0]
+                    #print("multiplicative? ", len(param.split("multiplicative")[-1]))
+                    mult = 0 if len(param.split("multiplicative")[-1])<1 else -1
+                    add = -1 if len(param.split("additive")[0]) >= len(param.split("additive")[-1]) and len(param.split("additive")[-1])>1 else 0 #
+                    param = fn.split(".pickle")[0].split("additive")[add].split("multiplicative")[mult].split("_")[-1]
+                    
+                    param_inds[folder].append(param)
+                    
 
-        for lagr in lagrs.keys():
-            plt.figure()
-            plt.scatter(regs[reg], lagrs[lagr])
-            #plt.scatter(test_regs[reg], lagrs[])
-            for i in range(len(regs[reg])):
-                plt.annotate(str(round(float(param_idx[i]),1)), xy=(regs[reg][i]+offset, lagrs[lagr][i]+offset))
-            plt.savefig(os.path.join(folder, lagr+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
-    #legend = param values
+                    with open(os.path.join(os.getcwd(), folder, fn), "rb") as pkl_data:
+                        try:
+                            results = pickle.load(pkl_data)
+                        except:
+                            print("Could not open ", fn)
+                            continue
+                        #print(list(results.keys()))
+                        for loss in results.keys():
+                            k = loss.split("/")[0]
+                            #print(loss)
+                            if 'test' not in loss:
+                                if 'recon' in loss:
+                                    recons[folder][k].append(results[loss][-1] if 'test' not in loss else results[loss])
+                                    try:
+                                        test_recons[folder][k].append(results[str('test_'+loss)])
+                                    except:
+                                        test_recons[folder][k].append(results[str('test_'+k+'_loss')])
+                                elif 'reg' in loss:
+                                    regs[folder][k].append(results[loss][-1] if 'test' not in loss else results[loss])
+                                    try:
+                                        test_regs[folder][k].append(results[str('test_'+loss)])
+                                    except:
+                                        test_regs[folder][k].append(results[str('test_'+k+'_loss')])
+
+                                elif 'lagr' in loss:
+                                    if 'test' in loss:
+                                        warn('*** TEST LAGRANGIAN EXISTS **** for ', fn)
+                                    lagrs[folder][k].append(results[loss][-1] if 'test' not in loss else results[loss])
+                                    #test_lagrs[loss].append(results[str('test_'+loss)])
+        #write files per folder 
+        csv_str=''
+        print("Params ", param_inds[folder])
+ 
+        # rows = increasing param value
+        for i in sorted(range(len(param_inds[folder])), key=lambda k: param_inds[folder][k]): #range(len(param_inds[folder])):
+            # headers
+            if csv_str=='':
+                #print("len params ", len(param_inds[folder]))
+                csv_str = "{} \n".format(fn)
+                csv_str += 'Param \t \t'
+                for k in regs[folder].keys():
+                    csv_str += "{} \t \t".format(k.split('_')[:-2]) #k.split('loss')[:-2]
+                for k in recons[folder].keys():
+                    csv_str += "{} \t \t".format(k.split('_')[:-2])
+                    csv_str += "test_{} \t \t".format(k.split('_')[:-2])
+                for k in lagrs[folder].keys():
+                    csv_str += "{} \t \t".format(k.split('_')[:-2])
+                    #csv_str += "test_{} \t".format(k)
+            csv_str += "\n"
+            csv_str += '{} \t \t'.format(param_inds[folder][i])
+            # columns
+            for k in regs[folder].keys():
+                csv_str += "{} \t \t".format(round(regs[folder][k][i],2))
+            for k in recons[folder].keys():
+                csv_str += "{} \t \t".format(round(recons[folder][k][i],2))
+                csv_str += "{} \t \t".format(round(test_recons[folder][k][i]),2)
+            for k in lagrs[folder].keys():
+                csv_str += "{} \t \t".format(round(lagrs[folder][k][i]),3)
+
+            csv_str += "\n"
+
+            #knn_results += "Echo,\t\t{:0.4f}\n".format(knn_score)
+            with open('{}/results.txt'.format(folder), 'w') as f:
+                f.write(csv_str)
+            #csv.write(param_inds[folder][i], regs[folder][k][i] for k in regs[folder].keys(), recons[folder][k][i] for k in recons[folder].keys())
+
+        for reg in regs[folder].keys():
+            for recon in recons[folder].keys():
+                if 'beta' in fn or beta:
+                    val, idx = min((val, idx) for (idx, val) in enumerate(param_inds[folder]))
+                else: # constrainted optimization, maximal regularizer
+                    val, idx = max((val, idx) for (idx, val) in enumerate(param_inds[folder]))
+
+                #val, idx = min((val, idx) for (idx, val) in enumerate(recons[folder][recon]))
+                print('AE idx ', recon, ' : ', idx, ' , ', val, ' : test recon len ', len(test_recons[folder][recon]))
+                print('reg: ', reg, ' other keys: ', list(regs[folder].keys()))
+                print('regs len ', len(regs[folder][reg]), ' recons len ', len(recons[folder][recon]))
+                
+                plt.figure(figsize=(15,15))
+                plt.title(str("Train/Test RD "+ folder.split('/')[-1]))
+                plt.xlabel(reg)
+                plt.ylabel(recon)
+                # scatter except for minimum recon => dotted line
+
+                try:
+                    plt.axhline(y= recons[folder][recon][idx], color = 'b', linestyle='-', label = str('train_AE (param '+ str(round(float(val),0))+')'))
+                    plt.axhline(y= test_recons[folder][recon][idx], color = 'r', linestyle='-', label= str('test_AE (param '+ str(round(float(val),0))+')'))
+                except:
+                    plt.axhline(y= recons[folder][recon][idx], color = 'b', linestyle='-', label = 'train_AE')
+                    plt.axhline(y= test_recons[folder][recon][idx], color = 'r', linestyle='-', label= 'test_AE')
+              
+                plt.scatter([regs[folder][reg][i] for i in range(len(regs[folder][reg])) if i != idx], 
+                    [recons[folder][recon][i] for i in range(len(recons[folder][recon])) if i != idx])
+                plt.scatter([test_regs[folder][reg][i] for i in range(len(test_regs[folder][reg])) if i != idx], 
+                    [test_recons[folder][recon][i] for i in range(len(test_recons[folder][recon])) if i != idx])
+
+                plt.legend()
+                for i in range(len(regs[folder][reg])):
+                    plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]-offset, recons[folder][recon][i]-offset), size = 'large')
+                
+
+                plt.savefig(os.path.join(folder, str(*recon.split('loss')[:-1])+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
+                
+
+            for lagr in lagrs[folder].keys():
+                plt.figure()
+                plt.scatter(regs[folder][reg], lagrs[folder][lagr])
+                #plt.scatter(test_regs[folder][reg], lagrs[])
+                for i in range(len(regs[folder][reg])):
+                    plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]+offset, lagrs[folder][lagr][i]+offset))
+                plt.savefig(os.path.join(folder, lagr+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
+        #legend = param values
+    for folder in folders:
+        for reg in regs[folder].keys():
+            for recon in recons[folder].keys():
+                if folder == folders[0]:
+                    plt.figure(figsize=(15,15))
+                    plt.title(str("Train/Test RD"))
+                    plt.xlabel(reg)
+                    plt.ylabel(recon)
+                    
+              
+                plt.scatter(regs[folder][reg], recons[folder][recon], label = folder.split('/')[0]+'_train')
+                plt.scatter(test_regs[folder][reg], test_recons[folder][recon], label = folder.split('/')[0]+'_test')
+
+    plt.legend()
+                #for i in range(len(regs[folder][reg])):
+                #    plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]-offset, recons[folder][recon][i]-offset), size = 'large')
+    plt.savefig("comparison_rd_"+str(round(np.random.rand(), 2)).split('.')[0] + ".pdf")
 
 
 def plot_loss(hist, keys = ['loss', 'val_loss'], prefix=""):
@@ -212,6 +233,47 @@ def write_loss(hist, keys = None, prefix="", full_hist = True):
         print('entire ', hist_df.shape)
         hist_df.to_csv('{}history.csv'.format(prefix))
 
+def graph_history(values, label = ""):
+    f = plt.figure()
+    plt.plot(list(range(len(values))), values, label = label.split['/'][-1])
+    plt.title(label.split['/'][-1]+" over Training")
+    plt.ylabel(label)
+    plt.xlabel(epoch)
+    plt.savefig(label+'_over_time.pdf')
+
+
+def write_runs(recons, regs, lagrs = None, indices = None):
+    for folder in recons.keys():
+        for loss in recons[folder].keys():
+            pass
+    if indices is not None:
+        for i in sorted(range(len(indices[folder])), key=lambda k: indices[folder][k]): #range(len(param_inds[folder])):
+                # headers
+                if csv_str=='':
+                    #print("len params ", len(param_inds[folder]))
+                    csv_str = "{} \n".format(fn)
+                    csv_str += 'Param \t \t'
+                    for k in regs[folder].keys():
+                        csv_str += "{} \t \t".format(k.split('_')[:-2]) #k.split('loss')[:-2]
+                    for k in recons[folder].keys():
+                        csv_str += "{} \t \t".format(k.split('_')[:-2])
+                        csv_str += "test_{} \t \t".format(k.split('_')[:-2])
+                    for k in lagrs.keys():
+                        csv_str += "{} \t \t".format(k.split('_')[:-2])
+                        #csv_str += "test_{} \t".format(k)
+                csv_str += "\n"
+                csv_str += '{} \t \t'.format(param_inds[folder][i])
+                # columns
+                for k in regs[folder].keys():
+                    csv_str += "{} \t \t".format(round(regs[folder][k][i],2))
+                for k in recons[folder].keys():
+                    csv_str += "{} \t \t".format(round(recons[folder][k][i],2))
+                    csv_str += "{} \t \t".format(round(test_recons[folder][k][i]),2)
+                for k in lagrs.keys():
+                    csv_str += "{} \t \t".format(round(lagrs[k][i]),3)
+
+                csv_str += "\n"
+
 
 def plot_traversals(dataset, encoder, generator, top_dims = [], top = 10, prefix = "", 
         traversals = 13, imgs = 1, stdevs = 3, z_act = None, means = None, sigmas = None): #chunk?
@@ -228,6 +290,7 @@ def plot_traversals(dataset, encoder, generator, top_dims = [], top = 10, prefix
         else:
             z_act = encoder([data[data_points, :]])[0]
     
+    print("Z ACT SHAPE PLOT TRAVERSALS ", z_act.shape)
     encoder_dim = z_act.shape[-1]
     top = min(encoder_dim, top)
 
@@ -289,10 +352,10 @@ def plot_traversals(dataset, encoder, generator, top_dims = [], top = 10, prefix
             k = k+1
         # sizing?    
         plt.figure(figsize=(24, 72)) 
-        plt.imshow(figure)
+        #plt.imshow(figure)
         plt.axis('off')
         plt.savefig('{}_latent_traversals_{}.png'.format(prefix, str(data_pt)), bbox_inches='tight')
-        plt.close('all')
+        #plt.close('all')
 
 
 
@@ -393,14 +456,14 @@ def vis_reconstruction(model, data, prefix='', noise=None, n=5, batch = 100, num
     
 
     
-def manifold(activations, generator, per_dim = 50, dims = None):
+def manifold(activations, generator, per_dim = 50, dims = None, location = 'results/'):
     # UNTESTED
     lim_x = [np.percentile(activations[:,0], 0), np.percentile(activations[:,0], 100)]
     lim_y = [np.percentile(activations[:,1], 0), np.percentile(activations[:,1], 100)]
     grid_x = np.linspace(lim_x[0], lim_x[1], per_dim)
     grid_y = np.linspace(lim_y[0], lim_y[1], per_dim)
     
-    figure = np.zeros((digit_size * n, digit_size * n))
+    figure = np.zeros((dims[0] * per_dim, dims[1] * per_dim))
 
     if dims is None:
         dim_sqrt = int(np.sqrt(generator.predict(activations[0,:]).shape[-1]))
@@ -411,18 +474,19 @@ def manifold(activations, generator, per_dim = 50, dims = None):
         for j, xi in enumerate(grid_y):
             z_sample = np.array([[xi, yi]])
             x_decoded = generator.predict(z_sample)
-            digit = x_decoded[0].reshape(digit_size, digit_size)
+            digit = x_decoded[0].reshape((dims[0], dims[1]))
             figure[i * dims[0]: (i + 1) * dims[0],
                    j * dims[1]: (j + 1) * dims[1]] = digit
 
     plt.figure(figsize=(10, 10))
     plt.imshow(figure)
-    plt.savefig(str(self.location + '_2d_latent.pdf'))
+    plt.savefig(location+'_2d_latent.pdf')
     plt.close()
 
 def two_d_labeled(x, y, encoder, batch = 1000, prefix = ''):
     # UNTESTED
     indices = np.random.choice(x.shape[0], batch, replace=False)
+    print('indices ', indices.shape)
 
     if isinstance(encoder, KerasModel):
         z_act = encoder.predict(x[indices, :])
@@ -436,7 +500,8 @@ def two_d_labeled(x, y, encoder, batch = 1000, prefix = ''):
     z2 = z_act[:, 1]
     
     fig, ax = plt.subplots()
-    scattr = ax.scatter(z1, z2, s=25, c = y[indices].astype(int), cmap = Set1)
+    print("axis ", ax)
+    scattr = ax.scatter(z1, z2, s=25, c = y[indices].astype(int), cmap = 'Greys_r')
     plt.colorbar(scattr, spacing='proportional')
     plt.grid()
     plt.savefig(str(prefix + '_2d_by_label.pdf'))

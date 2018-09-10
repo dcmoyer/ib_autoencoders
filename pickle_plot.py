@@ -13,7 +13,7 @@ folders = [
     'ido_beta',
     'ido_constraint',
     'echo_add_beta',
-    'echo_add_constraint'
+    'echo_add_constraint',
     'echo_add_beta_dim2',
     'echo_mult_beta',
     'echo_mult_constraint',
@@ -21,7 +21,7 @@ folders = [
 ]
 folders = [str('results/' + f) for f in folders]
 for folder in folders:
-    analysis.rd_curve(folder)
+    analysis.rd_curve(folder, beta = 'beta' in folder)
 
 
 

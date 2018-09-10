@@ -73,16 +73,16 @@ def echo_loss(inputs, d_max = 50):
     cap = tf.reduce_sum(capacities, name="capacity")
     return tf.expand_dims(tf.expand_dims(cap,0), 1)
 
-def echo_loss2(inputs, d_max = 50):
-    print("INPUTS: ", inputs)
-    cap_param = inputs[0]
-    min_capacity = 16.0 / d_max # d_max ... don't have access to d_max to actually pass
-    # compare to what Greg's implementation calculates for D, s.b. easy to verify
+# def echo_loss2(inputs, d_max = 50):
+#     print("INPUTS: ", inputs)
+#     cap_param = inputs[0]
+#     min_capacity = 16.0 / d_max # d_max ... don't have access to d_max to actually pass
+#     # compare to what Greg's implementation calculates for D, s.b. easy to verify
 
-    #capacities = tf.identity(tf.nn.softplus(-cap_param) - np.log(self.c_min), name='capacities')
-    capacities = tf.nn.softplus(- cap_param) #tf.identity(tf.nn.softplus(- cap_param), name='capacities') #tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
-    cap = tf.reduce_sum(capacities, name="capacity")
-    return tf.expand_dims(tf.expand_dims(cap,0), 1)
+#     #capacities = tf.identity(tf.nn.softplus(-cap_param) - np.log(self.c_min), name='capacities')
+#     capacities = tf.nn.softplus(- cap_param) #tf.identity(tf.nn.softplus(- cap_param), name='capacities') #tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
+#     cap = tf.reduce_sum(capacities, name="capacity")
+#     return tf.expand_dims(tf.expand_dims(cap,0), 1)
 
 def dim_sum(true, tensor):
     #print('DIMSUM TRUE ', _true)

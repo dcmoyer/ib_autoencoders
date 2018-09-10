@@ -127,7 +127,6 @@ class Echo(Layer):
   def __init__(self, init = -5., batch = 200, d_max = 50, trainable = False, noise = 'additive', multiplicative = False, periodic = False, **kwargs):
       self.init = init
       self.trainable = trainable
-
       self.noise = noise if not (multiplicative and noise == "additive") else 'multiplicative'
 
       self.d_max = d_max
@@ -140,7 +139,7 @@ class Echo(Layer):
   def build(self, input_shape):
       #self.batch = input_shape[0]
       self.dim = input_shape[1]
-      print("BATCH SIZE ECHO LAYER ", self.batch)
+      #print("BATCH SIZE ECHO LAYER ", self.batch)
       if self.trainable:
         self.cap_param = self.add_weight(name='capacity', 
                                       shape = (self.dim,),
@@ -194,9 +193,6 @@ class Echo(Layer):
     noise = tf.reduce_sum(noise, axis=1)  # Sums over d_max terms in sum
     noise -= tf.reduce_mean(noise, axis=0)
 
-    print('encoder ', z_mean)
-    print('c ', c)
-    print('noise ', noise)
     if self.noise == 'multiplicative':
         noisy_encoder = tf.exp(z_mean + c*noise)# #z_mean * tf.exp(c * noise)
     else:

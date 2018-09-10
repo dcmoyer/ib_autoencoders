@@ -58,7 +58,6 @@ class Session(object):
         #folder = os.path.join('results', str(self.name)+'_'+str(dataset.name)+'_'+self.config.split('.json')[0])
         if not os.path.exists(folder):
             os.mkdir(folder)
-            print(os.path.join(folder, "exec"))
             os.mkdir(os.path.join(folder, "exec"))
 
         exfilename = os.path.join(folder, "base_config.txt")
@@ -80,9 +79,6 @@ class Session(object):
             config_str = json.dumps(config).replace("'", '"')
             #sess = tf.Session()
             #K.set_session(sess)
-            print("config ", config_str)
-            print(type(config_str))
-            print()
             # write python file
             statements = [
                 "#!/bin/bash",
@@ -112,7 +108,7 @@ class Session(object):
 
             # del python file
             count = count + 1
-            print("Command ", cmd)
+            
             #!/bin/bash                                                                                                                                                       
             #SBATCH --ntasks=8                                                                                                                                                
             #SBATCH --time=00:59:00                                                                                                                                           

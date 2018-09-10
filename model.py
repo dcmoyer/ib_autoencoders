@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import numpy as np
 import keras.backend as K
 import tensorflow as tf
@@ -332,7 +334,7 @@ class NoiseModel(Model):
         self.sess = tf.Session()
         with self.sess.as_default():
             tf.global_variables_initializer().run()
-        
+         
         #print(self.lagrangian_fit)
         if not self.lagrangian_fit:
             #self.model.compile(optimizer = self.optimizer, loss = self.model_losses, loss_weights = self.model_loss_weights) # metrics?
@@ -351,7 +353,7 @@ class NoiseModel(Model):
         z = self._encoder(x = examples)
         x_pred = self._decoder(z)         
 
-        print("z: ", type(z))
+        
         means = np.mean(z, axis = 0)
         sigs = np.sqrt(np.var(z, axis = 0))
 
@@ -363,8 +365,12 @@ class NoiseModel(Model):
                         means = means,
                         sigmas = sigs)
 
-        analysis.manifold(z, x_pred, per_dim = 50, dims = self.dataset.dims)
-        analysis.two_d_labeled(x_train, y_train, encoder, batch = self.batch, prefix = self.filename)
+        analysis.manifold(z, x_pred, per_dim = 50, dims = self.dataset.dims, location = 'results/'+self.filename)
+        
+        if y_train is None:
+            y_train = self.dataset.y_train
+
+        analysis.two_d_labeled(x_train, y_train, self._encoder(), batch = self.batch, prefix = self.filename)
 
         #tf_mod(kz, x_out, sess), top = latent_dims[-1], prefix = os.path.join(os.path.dirname(os.path.realpath(__file__)), log_path, '_'), z_act = z_acts, means= means, sigmas = sigs, imgs = p)
 
@@ -431,11 +437,15 @@ class NoiseModel(Model):
 
     def _encoder(self, x = None):
         for i in self.model.layers:
-            if 'z_act' or 'echo' in i.name:
+            print(i.name)
+            if 'z_act' in i.name or 'echo' in i.name:
                 final_latent = i.name
-
+                break
+        print("FINAL LATENT ", final_latent)
         get_z = K.function([self.model.layers[0].get_input_at(0)], [
                         self.model.get_layer(final_latent).get_output_at(0)])
+        if x is not None:
+            print("GET Z LIST ", len(get_z([x])), get_z([x])[0].shape) 
         return get_z if x is None else get_z([x])[0]
 
     def _encoder_stats(self, x = None):
@@ -458,8 +468,9 @@ class NoiseModel(Model):
 
     def _decoder(self, x = None):
         for i in self.model.layers:
-            if 'z_act' or 'echo' in i.name:
+            if 'z_act' in i.name or 'echo' in i.name:
                 final_latent = i.name
+                break
 
         z_inp = Input(shape = (self.encoder_dims[-1],))
         z_out = z_inp
