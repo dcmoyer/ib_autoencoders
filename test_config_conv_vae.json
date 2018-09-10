@@ -6,7 +6,7 @@
 	"lr": 0.001,
 	"input_shape": [28, 28, 1],
 	"latent_dims": [32, 32, 64, 64, 256, 64],
-	"decoder_dims": [64, 64, 64, 32, 32, 784],
+	"decoder_dims": [64, 64, 64, 32, 32, 1],
 	"layers": 
 		[	
 			{
@@ -72,7 +72,8 @@
 			{
 			"layer": 5, 
 			"encoder": true,
-			"type": "add"	
+			"type": "additive", 
+			"k": 1	
 			},
 			{
 			"layer": 0, 
@@ -149,7 +150,7 @@
 			{
 			"layer": 6, 
 			"encoder": false,
-			"type": "Conv2DTranspose",
+			"type": "Conv2D",
 			"activation": "linear",	
 			"layer_kwargs":
 				{

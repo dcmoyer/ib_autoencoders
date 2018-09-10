@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import json
 from collections import defaultdict
 from keras import backend as K
-from keras.layers import Input, Dense, merge, Lambda #Concatenate, 
+from keras.layers import Input, Dense, merge, Lambda, Flatten #Concatenate, 
 from keras.layers import Activation, BatchNormalization, Lambda, Reshape
 from keras.callbacks import Callback, TensorBoard, LearningRateScheduler
 import keras.models
@@ -152,8 +152,8 @@ class NoiseModel(Model):
             self.decoder_dims = list(reversed(self.encoder_dims[:-1]))
             self.decoder_dims.append(self.dataset.dim)
         else:
-            if self.decoder_dims[-1] != self.dataset.dim:
-                self.decoder_dims.append(self.dataset.dim)
+            #if self.decoder_dims[-1] != self.dataset.dim:
+            #    self.decoder_dims.append(self.dataset.dim)
             print("Using custom decoder architecture")
         #   self.decoder_dims = args.get('decoder_dims')
 
@@ -303,11 +303,17 @@ class NoiseModel(Model):
 
     # TO DO : MAKE FIT AUTOMATICALLY READ DATASET
     def fit(self, x_train, y_train = None, x_val = None, y_val = None):
-        self.input_tensor = Input(shape = (self.dataset.dim,)) if self.input_shape is None else Input(shape = self.input_shape) 
+        if self.input_shape is None:
+            self.input_shape = (self.dataset.dim,)
+        self.input_tensor = Input(shape = (self.dataset.dim,)) 
+        if self.input_shape is not None:
+            self.input = Reshape(self.input_shape)(self.input_tensor)
+        else:
+            self.input = self.input_tensor    
         self.recon_true = self.input_tensor # Lambda(lambda y : y, name = 'x_true')(x)
         #print('INPUT SHAPE ', self.input_shape, ' x shape ', self.input_tensor, self.input_shape.insert(-1, 0) if self.input_shape is not None else '')
         #print("***********************         ENCODER          *****************************")
-        self.encoder_layers = self._build_architecture([self.input_tensor], encoder = True)
+        self.encoder_layers = self._build_architecture([self.input], encoder = True)
         #print("***********************         DECODER          *****************************")
         self.decoder_layers = self._build_architecture(self.encoder_layers[len(self.encoder_layers)-1]['act'], encoder = False)
         self.model_outputs, self.model_losses, self.model_loss_weights = self._make_losses()
@@ -534,14 +540,15 @@ class NoiseModel(Model):
                     elif 'stat' in inputs_layer[j]:
                         print('adding stat from ', layers[lyr], 'choosing lyr_arg', inputs_layer[j])
                         outputs.extend(layers[lyr][inputs_layer[j]][0])
-                print('outputs for layer ', outputs, "( ", layers[lyr], ":", inputs_layer[j], ")")
+                
                 for j in range(len(inputs_output)):
                     layers = self.decoder_layers
                     lyr = loss.output
                     if 'act' in inputs_output[j]:# == 'act':
                         # all output activations get either recon_true or encoder activation (for corex)
                         if (lyr == -1): #[-1, len(self.decoder_dims)-1]):
-                            recon_true = self.recon_true
+                            recon_true = self.recon_true #if len(K.int_shape(self.recon_true)) == 2 else Flatten()(self.recon_true) 
+                            #K.reshape(self.recon_true, [-1, np.prod([i for i in self.recon_true.get_shape().as_list()[1:] if i is not None])])
                         else:
                             if len(self.encoder_layers[lyr]['act']) == 1:
                                 recon_true = layers[lyr]['act'][0]
@@ -557,8 +564,11 @@ class NoiseModel(Model):
                         outputs.extend(layers[lyr][inputs_output[j]][0])
                     # not handling 'addl' tensors
 
-                print('outputs for layer ', outputs)
-            
+                print('outputs for layer ', outputs, [K.int_shape(o) for o in outputs])
+                outputs = [Flatten()(o) for o in outputs if len(K.int_shape(o))>2]
+                #[-1, np.prod([i for i in o.get_shape().as_list()[1:] if i is not None])]) for o in outputs]
+                #o.get_shape().as_list()[1:])]) for o in outputs]
+                #outputs = [tf.contrib.layers.flatten(output) for output in outputs]
                 if metrics:
                     self.metric_outputs.append(self.loss_functions[-1](outputs))
                     self.metric_losses.append(l.dim_sum) 
@@ -715,12 +725,12 @@ class NoiseModel(Model):
                 if isinstance(current_call, list):
                     current = current_call[k] if len(current_call) > 1 else current_call[0]
                 
-                if isinstance(current, list):
-                        print("current ", current)
+                #if isinstance(current, list):
+                #        print("current ", current)
                         #print(current[0])
                         #print(current[1])
-                        current = current[0] # hack for echo
-                        self.encoder_layers[-1]['addl'].append(current[0])
+                #        current = current[0] # hack for echo
+                #        self.encoder_layers[-1]['addl'].append(current[0])
 
                 print("CURRENT (i.e. prev layer) ", current, current_call)
                 a = act_lyr(current)
