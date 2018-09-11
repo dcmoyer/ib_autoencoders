@@ -565,7 +565,10 @@ class NoiseModel(Model):
                     # not handling 'addl' tensors
 
                 print('outputs for layer ', outputs, [K.int_shape(o) for o in outputs])
-                outputs = [Flatten()(o) for o in outputs if len(K.int_shape(o))>2]
+                for i in range(len(outputs)):
+                    outputs[i] = Flatten()(outputs[i]) if len(K.int_shape(outputs[i])) > 2 else outputs[i]
+                    #for o in outputs if len(K.int_shape(o))>2]
+                
                 #[-1, np.prod([i for i in o.get_shape().as_list()[1:] if i is not None])]) for o in outputs]
                 #o.get_shape().as_list()[1:])]) for o in outputs]
                 #outputs = [tf.contrib.layers.flatten(output) for output in outputs]
