@@ -130,7 +130,7 @@ class NoiseModel(Model):
                 self.lr = getattr(mod, self.lr)
                 self.lr_callback = isinstance(self.lr, str)
             except:
-                self.lr = dflt.get('lr', .001)
+                #self.lr = dflt.get('lr', .001)
                 raise Warning("Cannot find LR Schedule function.  Proceeding with default, constant learning rate.")    
 
 
@@ -371,12 +371,13 @@ class NoiseModel(Model):
                         means = means,
                         sigmas = sigs)
 
-        analysis.manifold(z, x_pred, per_dim = 50, dims = self.dataset.dims, location = 'results/'+self.filename)
+        if self.encoder_dims[-1] == 2:
+            analysis.manifold(z, x_pred, per_dim = 50, dims = self.dataset.dims, location = 'results/'+self.filename)
         
-        if y_train is None:
-            y_train = self.dataset.y_train
+            if y_train is None:
+                y_train = self.dataset.y_train
 
-        analysis.two_d_labeled(x_train, y_train, self._encoder(), batch = self.batch, prefix = self.filename)
+            analysis.two_d_labeled(x_train, y_train, self._encoder(), batch = self.batch, prefix = self.filename)
 
         #tf_mod(kz, x_out, sess), top = latent_dims[-1], prefix = os.path.join(os.path.dirname(os.path.realpath(__file__)), log_path, '_'), z_act = z_acts, means= means, sigmas = sigs, imgs = p)
 

@@ -24,7 +24,7 @@ import pickle
 # if isinstance( data, Dataset):
 #   data = data.data
 #def rd_curve(hist, test = None, legend = None, prefix = ''):
-def rd_curve(folders, beta = False, savefig = True):
+def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'bce'):
     recons = defaultdict(lambda: defaultdict(list))
     regs = defaultdict(lambda: defaultdict(list))
     lagrs = defaultdict(lambda: defaultdict(list))
@@ -93,19 +93,23 @@ def rd_curve(folders, beta = False, savefig = True):
         print("Params ", param_inds[folder])
  
         # rows = increasing param value
-        for i in sorted(range(len(param_inds[folder])), key=lambda k: param_inds[folder][k]): #range(len(param_inds[folder])):
+        for i in sorted(range(len(param_inds[folder])), key=lambda k: float(param_inds[folder][k])): #range(len(param_inds[folder])):
             # headers
             if csv_str=='':
                 #print("len params ", len(param_inds[folder]))
                 csv_str = "{} \n".format(fn)
                 csv_str += 'Param \t \t'
                 for k in regs[folder].keys():
-                    csv_str += "{} \t \t".format(k.split('_')[:-2]) #k.split('loss')[:-2]
+                    csv_str += "{} \t \t".format(k.split('_')[0]) #k.split('loss')[:-2]
+                    #csv_str += "{} \t \t".format(k.split('_')[:-2]) #k.split('loss')[:-2]
                 for k in recons[folder].keys():
-                    csv_str += "{} \t \t".format(k.split('_')[:-2])
-                    csv_str += "test_{} \t \t".format(k.split('_')[:-2])
+                    csv_str += "{} \t \t".format(k.split('_')[0]) 
+                    csv_str += "test_{} \t \t".format(k.split('_')[0])
+                    #csv_str += "{} \t \t".format(k.split('_')[:-2])
+                    #csv_str += "test_{} \t \t".format(k.split('_')[:-2])
                 for k in lagrs[folder].keys():
-                    csv_str += "{} \t \t".format(k.split('_')[:-2])
+                    csv_str += "{} \t \t".format(k.split('_')[0])
+                    #csv_str += "{} \t \t".format(k.split('_')[:-2])
                     #csv_str += "test_{} \t".format(k)
             csv_str += "\n"
             csv_str += '{} \t \t'.format(param_inds[folder][i])
@@ -133,9 +137,9 @@ def rd_curve(folders, beta = False, savefig = True):
                     val, idx = max((val, idx) for (idx, val) in enumerate(param_inds[folder]))
 
                 #val, idx = min((val, idx) for (idx, val) in enumerate(recons[folder][recon]))
-                print('AE idx ', recon, ' : ', idx, ' , ', val, ' : test recon len ', len(test_recons[folder][recon]))
-                print('reg: ', reg, ' other keys: ', list(regs[folder].keys()))
-                print('regs len ', len(regs[folder][reg]), ' recons len ', len(recons[folder][recon]))
+                #print('AE idx ', recon, ' : ', idx, ' , ', val, ' : test recon len ', len(test_recons[folder][recon]))
+                #print('reg: ', reg, ' other keys: ', list(regs[folder].keys()))
+                #print('regs len ', len(regs[folder][reg]), ' recons len ', len(recons[folder][recon]))
                 
                 plt.figure(figsize=(15,15))
                 plt.title(str("Train/Test RD "+ folder.split('/')[-1]))
@@ -156,12 +160,13 @@ def rd_curve(folders, beta = False, savefig = True):
                     [test_recons[folder][recon][i] for i in range(len(test_recons[folder][recon])) if i != idx])
 
                 plt.legend()
-                for i in range(len(regs[folder][reg])):
-                    plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]-offset, recons[folder][recon][i]-offset), size = 'large')
+                for i in sorted(range(len(param_inds[folder])), key=lambda k: float(param_inds[folder][k])):
+                    if i % 2 == 0:
+                        plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]-offset, recons[folder][recon][i]-offset), size = 'large')
                 
 
                 plt.savefig(os.path.join(folder, str(*recon.split('loss')[:-1])+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
-                
+                plt.close()
 
             for lagr in lagrs[folder].keys():
                 plt.figure()
@@ -170,25 +175,42 @@ def rd_curve(folders, beta = False, savefig = True):
                 for i in range(len(regs[folder][reg])):
                     plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]+offset, lagrs[folder][lagr][i]+offset))
                 plt.savefig(os.path.join(folder, lagr+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
+                plt.close()
         #legend = param values
     for folder in folders:
         for reg in regs[folder].keys():
             for recon in recons[folder].keys():
-                if folder == folders[0]:
-                    plt.figure(figsize=(15,15))
-                    plt.title(str("Train/Test RD"))
-                    plt.xlabel(reg)
-                    plt.ylabel(recon)
+                if recon_loss in recon and 'test' not in recon:
+                    if folder == folders[0]:
+                        plt.figure(figsize=(15,15))
+                        plt.title(str("Train/Test RD"))
+                        plt.xlabel(reg)
+                        plt.ylabel(recon)
                     
-              
-                plt.scatter(regs[folder][reg], recons[folder][recon], label = folder.split('/')[0]+'_train')
-                plt.scatter(test_regs[folder][reg], test_recons[folder][recon], label = folder.split('/')[0]+'_test')
+                    if 'beta' in fn or beta:
+                        val, idx = min((val, idx) for (idx, val) in enumerate(param_inds[folder]))
+                    else: # constrainted optimization, maximal regularizer
+                        val, idx = max((val, idx) for (idx, val) in enumerate(param_inds[folder]))
+
+                    plt.scatter([regs[folder][reg][i] for i in range(len(regs[folder][reg])) if i != idx], 
+                        [recons[folder][recon][i] for i in range(len(recons[folder][recon])) if i != idx], label = folder.split('/')[1].split('_')[0]+'_train')
+                    plt.scatter([test_regs[folder][reg][i] for i in range(len(test_regs[folder][reg])) if i != idx], 
+                        [test_recons[folder][recon][i] for i in range(len(test_recons[folder][recon])) if i != idx], label = folder.split('/')[1].split('_')[0]+'_test')
+                    for i in sorted(range(len(param_inds[folder])), key=lambda k: float(param_inds[folder][k])):
+                        if i % 2 == 0:
+                            plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]-offset, recons[folder][recon][i]-offset), size = 'large')
+                    
+
+                    plt.axhline(y= recons[folder][recon][idx], color = (np.random.rand(), np.random.rand(), np.random.rand()), linestyle='--', label = 'AE_'+folder.split('/')[1].split('_')[0]+'train')
+                    plt.axhline(y= test_recons[folder][recon][idx],color = (np.random.rand(), np.random.rand(), np.random.rand()), linestyle='--', label= 'AE_'+folder.split('/')[1].split('_')[0]+'test')
+
 
     plt.legend()
                 #for i in range(len(regs[folder][reg])):
                 #    plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]-offset, recons[folder][recon][i]-offset), size = 'large')
-    plt.savefig("comparison_rd_"+str(round(np.random.rand(), 2)).split('.')[0] + ".pdf")
-
+    name_str = ("comparison_"+str(round(np.random.rand(), 2)).split('.')[0] if name is None else name+"_")+"rd"
+    plt.savefig("results/"+name_str+".pdf")
+    plt.close()
 
 def plot_loss(hist, keys = ['loss', 'val_loss'], prefix=""):
     # print "==> plotting loss function"
