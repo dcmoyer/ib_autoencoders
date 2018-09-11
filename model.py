@@ -22,6 +22,7 @@ import dataset
 import losses as l
 import analysis
 import pickle
+import layers
 
 K.set_image_dim_ordering('tf')
 RECON_LOSSES = ['bce', 'mse', 'binary_crossentropy', 'mean_square_error', 'mean_squared_error', 'iwae']
@@ -79,7 +80,7 @@ class NoiseModel(Model):
             'lagrangian_fit': False,
             'beta': 1.0,
             'anneal_schedule': None,
-            'anneal_function': None,
+            'anneal_functions': None,
         }
         if config is not None:
             if isinstance(config, dict):
@@ -194,9 +195,15 @@ class NoiseModel(Model):
             raise TypeError('Anneal schedule should be a list')
         if isinstance(self.anneal_schedule, list) and isinstance(self.beta, list) and len(self.anneal_schedule)!= len(self.beta):
             raise ValueError('Anneal schedule and Beta list must be same length (Note: you should place a 0 in anneal_schedule to correspond to first Beta.')
+        
 
         #self.anneal_function = args.get('anneal_function', dflt.get('anneal_function', None))
-        self.anneal = (self.anneal_schedule is not None or self.anneal_function is not None)
+        self.anneal = (self.anneal_schedule is not None or self.anneal_functions is not None)
+        if self.anneal_functions is not None and not isinstance(self.anneal_functions, dict):
+            self.anneal_functions = {0: self.anneal_functions} 
+            warn("Anneal Function not a dictionary.  Default is to apply to LOSS index 0")
+
+
 
         self.lagrangian_fit = self.constraints or self.constraints is not None
         
@@ -513,7 +520,8 @@ class NoiseModel(Model):
                 print('loss type ', loss_list[i])
                 #print(vars(loss_list[i]))
                 loss = Loss(**loss_list[i]) if isinstance(loss_list[i], dict) else loss_list[i]
-                
+
+                #loss_list[i] = loss
                 print("Loss constraint value: ", loss.constraint)
                 #if loss.constraint is not None:
                 #    self.lagrangian_fit = True
@@ -620,6 +628,17 @@ class NoiseModel(Model):
         callbacks = []
         if self.lr_callback:
             callbacks.append(LearningRateScheduler(self.lr))
+        if self.anneal_functions:
+            annealed_losses = []
+            for lw in range(len(self.model_loss_weights)):
+                #try:
+                if (lw-1) in self.anneal_functions:
+                    loss_weight_layer = layers.Beta(beta = self.anneal_functions[lw-1](1), name = 'anneal_'+str(lw-1))
+                    # ALL FALSE... but what about trainable annealing?
+                    loss_weight_layer.trainable = False
+                    self.model_loss_weights[lw] = loss_weight_layer
+                    annealed_losses.append(lw-1)
+            callbacks.append(BetaCallback(function= self.anneal_functions[lw-1], layer_names = annealed_losses))
         return callbacks
 
     def transform(self):
