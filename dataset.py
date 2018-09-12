@@ -2,13 +2,17 @@ import numpy as np
 from abc import ABC, abstractmethod
 from keras.datasets import mnist, cifar10
 import os 
+import gzip
 
-class Dataset(ABC):
-    def __init__(self):
-        pass
+class Dataset(ABC): 
+    #def __init__(self, per_label = None):
+    #    if per_label is not None
         
     @abstractmethod
     def get_data(self):
+        pass
+
+    def shrink_supervised(self, per_label):
         pass
 
     #def num_samples(self):
@@ -37,7 +41,7 @@ class DatasetWrap(Dataset):
         return self.x_train, self.x_val, self.y_train, self.y_val
 
 class MNIST(Dataset):
-    def __init__(self, binary = False, val = 0):
+    def __init__(self, binary = False, val = 0, per_label = None):
         self.dims = [28,28]
         self.dim1 = 28
         self.dim2 = 28
@@ -48,6 +52,9 @@ class MNIST(Dataset):
         self.x_train, self.x_test, self.y_train, self.y_test = self.get_data()
         self.x_train = self.x_train[:(self.x_train.shape[0]-val), :]
         self.x_val = self.x_train[(self.x_train.shape[0]-val):, :]
+
+        if per_label is not None:
+            pass
 
     def get_data(self, onehot = False, path = None):
         if path is None and self.binary:
@@ -86,6 +93,48 @@ class MNIST(Dataset):
             print(train_data.shape, y_train.shape)
             return train_data, test_data, y_train, y_test
             #return train_data, validation_data, test_data
+
+class fMNIST(Dataset):
+    def __init__(self, binary = False, val = 0, per_label = None):
+        self.dims = [28,28]
+        self.dim1 = 28
+        self.dim2 = 28
+        self.dim = 784
+        #unused
+        #self.binary = binary
+        self.name = 'fmnist'
+
+        #self.x_train, self.x_test, self.y_train, self.y_test = self.get_data()
+        self.x_train, self.y_train = self.get_data(kind='train')
+        self.x_test, self.y_test = self.get_data(kind='test')
+        self.x_train = self.x_train[:(self.x_train.shape[0]-val), :]
+        self.x_val = self.x_train[(self.x_train.shape[0]-val):, :]
+
+    def get_data(self, kind = 'train', path = None):
+        if path is None:
+            path = './datasets/mnist/fMNIST'
+
+        """Load MNIST data from `path`"""
+        labels_path = os.path.join(path,
+                                   '%s-labels-idx1-ubyte.gz'
+                                   % kind)
+        images_path = os.path.join(path,
+                                   '%s-images-idx3-ubyte.gz'
+                                   % kind)
+
+        with gzip.open(labels_path, 'rb') as lbpath:
+            labels = np.frombuffer(lbpath.read(), dtype=np.uint8,
+                                   offset=8)
+
+        with gzip.open(images_path, 'rb') as imgpath:
+            images = np.frombuffer(imgpath.read(), dtype=np.uint8,
+                                   offset=16).reshape(len(labels), 784)
+        
+        images = images.astype('float32') / 255.
+        images = images.reshape((len(images), self.dim))
+        
+        return images, labels
+
 
 
 class DSprites(Dataset):

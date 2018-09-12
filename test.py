@@ -33,7 +33,8 @@ else:
 print("replaced config")
 print(config)
 
-d = dataset.MNIST(binary= True)
+d = dataset.fMNIST()
+#d = dataset.MNIST(binary= True)
 #i = Input(shape = (d.x_train.shape[-1],))
 #l = Dense(10)(i)
 #print(l, callable(l))

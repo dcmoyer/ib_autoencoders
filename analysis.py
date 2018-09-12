@@ -215,18 +215,21 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
 def plot_loss(hist, keys = ['loss', 'val_loss'], prefix=""):
     # print "==> plotting loss function"
     plt.clf()
+    print(hist.keys())
     for k in keys:
+        if k not in hist:
+            continue 
         if isinstance(hist, dict):
             plt.plot(hist[k], label=k)
-        else:
-            if k == 'loss':
-                try:
-                    x = [hist.history[k][i][0][0] for i in range(len(hist.history[k]))]
-                except:
-                    print(hist.history[k])
-            else:
-                x = hist.history[k]
-            plt.plot(x, label=k) 
+        # else:
+        #     if k == 'loss':
+        #         try:
+        #             x = [hist.history[k][i][0][0] for i in range(len(hist.history[k]))]
+        #         except:
+        #             print(hist.history[k])
+        #     else:
+        #     x = hist.history[k]
+        #     plt.plot(x, label=k) 
     plt.xlabel('epoch')
     plt.ylabel('Loss')
     plt.legend()

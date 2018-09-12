@@ -1,8 +1,5 @@
-
-def broken_elbo_mnist(epoch, base = 3*10**-4, constant = 100, total = 200):
-	if epoch < constant:
-		return base
-	elif epoch < total:
-		return (1 - (epoch - constant)/(total-constant))*base
+def kl_warmup(epoch, warmup_time = 100):
+	if epoch <= warmup_time:
+		return (epoch)/warmup_time
 	else:
-		raise ValueError('Epoch outside anneal range of Alemi et al 2018 range. Modify "total" argument in anneal_fn')
+		return 1.0

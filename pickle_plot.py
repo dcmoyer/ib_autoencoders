@@ -23,17 +23,23 @@ folders = [str('results/' + f) for f in folders]
 #for folder in folders:
 #    analysis.rd_curve(folder, beta = 'beta' in folder)
 
-#f = 'results/vae_alemi_binary_mnist'#, 'results/echo_add_beta']
-#analysis.rd_curve(f, beta = True, name = 'vae_alemi')
+f = 'results/echo_add_alemi_binary_mnist'#, 'results/echo_add_beta']
+analysis.rd_curve(f, beta = True, name = 'echo_alemi')
 
-f = ['results/vae_beta', 'results/echo_add_beta']
-analysis.rd_curve(f, beta = True, name = 'echo_vs_vae_beta')
+fn = 'alemi_echo_add_1.15.pickle'
+with open(os.path.join(os.getcwd(), f, fn), "rb") as pkl_data:
+    results = pickle.load(pkl_data)
+analysis.plot_loss(results, keys=['bce_recon_loss', 'mi_echo_reg_loss'], prefix = f+'/alemi')
 
-f = ['results/ido_beta', 'results/echo_mult_beta']
-analysis.rd_curve(f, beta = True, name = 'echo_vs_ido_beta')
 
-f = ['results/vae_constraint', 'results/echo_add_constraint']
-analysis.rd_curve(f, beta = False, name = 'echo_vs_vae_constraint')
+# f = ['results/vae_beta', 'results/echo_add_beta']
+# analysis.rd_curve(f, beta = True, name = 'echo_vs_vae_beta')
 
-f = ['results/ido_constraint', 'results/echo_mult_constraint']
-analysis.rd_curve(f, beta = False, name = 'echo_vs_ido_constraint')
+# f = ['results/ido_beta', 'results/echo_mult_beta']
+# analysis.rd_curve(f, beta = True, name = 'echo_vs_ido_beta')
+
+# f = ['results/vae_constraint', 'results/echo_add_constraint']
+# analysis.rd_curve(f, beta = False, name = 'echo_vs_vae_constraint')
+
+# f = ['results/ido_constraint', 'results/echo_mult_constraint']
+# analysis.rd_curve(f, beta = False, name = 'echo_vs_ido_constraint')

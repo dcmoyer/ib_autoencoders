@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import json
 from collections import defaultdict
 from keras import backend as K
+from layers import Beta
 from keras.layers import Input, Dense, merge, Lambda, Flatten #Concatenate, 
 from keras.layers import Activation, BatchNormalization, Lambda, Reshape
 from keras.callbacks import Callback, TensorBoard, LearningRateScheduler
@@ -22,7 +23,7 @@ import dataset
 import losses as l
 import analysis
 import pickle
-import layers
+from callbacks import BetaCallback
 
 K.set_image_dim_ordering('tf')
 RECON_LOSSES = ['bce', 'mse', 'binary_crossentropy', 'mean_square_error', 'mean_squared_error', 'iwae']
@@ -199,11 +200,29 @@ class NoiseModel(Model):
 
         #self.anneal_function = args.get('anneal_function', dflt.get('anneal_function', None))
         self.anneal = (self.anneal_schedule is not None or self.anneal_functions is not None)
-        if self.anneal_functions is not None and not isinstance(self.anneal_functions, dict):
-            self.anneal_functions = {0: self.anneal_functions} 
-            warn("Anneal Function not a dictionary.  Default is to apply to LOSS index 0")
+        if self.anneal_functions is not None:# and not isinstance(self.anneal_functions, dict):
+            if isinstance(self.anneal_functions, str):
+                self.anneal_functions = {0: self.anneal_functions}
+                warn("Anneal Function not a dictionary.  Default is to apply to LOSS index 0")
+            elif isinstance(self.anneal_functions, list):
+                anneal_copy = self.anneal_functions.copy()
+                self.anneal_functions = {}
+                for l in range(len(anneal_copy)):
+                    self.anneal_functions[l] = anneal_copy[l]
 
-
+            anneal_copy = self.anneal_functions.copy()
+            for k in anneal_copy.keys():
+                print("Key ", k)
+                try:
+                    mod = importlib.import_module('.'.join(self.anneal_functions[k].split('.')[:-1]))
+                except:
+                    mod = importlib.import_module('custom_functions.anneal_fn')
+                # LR Callback will be True /// self.lr = function of epochs -> lr
+                self.anneal_functions[int(k)] = getattr(mod, self.anneal_functions[k].split('.')[-1])
+                del self.anneal_functions[k]
+            print()
+            print('*** ANNEAL FUNCTION ***')
+            print(self.anneal_functions)
 
         self.lagrangian_fit = self.constraints or self.constraints is not None
         
@@ -332,6 +351,9 @@ class NoiseModel(Model):
         #print([type(o) for o in self.model_outputs])
         self.model = keras.models.Model(inputs = self.input_tensor, outputs = self.model_outputs)
         print(self.model.summary())
+        print(callbacks)
+        print(self.model_loss_weights)
+
         for i in self.model.layers[1:]:
             try:
                 print(i.name, i.activation)
@@ -344,6 +366,7 @@ class NoiseModel(Model):
         #print("ENTROPY OF DATA ", np.mean(np.sum(np.multiply(x_train, np.log(x_train+10**-7)), axis = -1)))
         
         self.model.compile(optimizer = self.optimizer, loss = self.model_losses, loss_weights = self.model_loss_weights) # metrics?
+        print(self.model.metrics_names)
         self.sess = tf.Session()
         with self.sess.as_default():
             tf.global_variables_initializer().run()
@@ -628,18 +651,24 @@ class NoiseModel(Model):
         callbacks = []
         if self.lr_callback:
             callbacks.append(LearningRateScheduler(self.lr))
+        print()
+        print("MAKING CALLBACKS ", self.anneal_functions)
         if self.anneal_functions:
+            print(list(self.anneal_functions.keys()))
             annealed_losses = []
             for lw in range(len(self.model_loss_weights)):
                 #try:
-                if (lw-1) in self.anneal_functions:
-                    loss_weight_layer = layers.Beta(beta = self.anneal_functions[lw-1](1), name = 'anneal_'+str(lw-1))
+                if (lw) in [int(i) for i in list(self.anneal_functions.keys())]:
+                    #loss_weight_layer = Beta(beta = self.anneal_functions[lw](1), name = 'anneal_'+str(lw))(self.input_tensor)
                     # ALL FALSE... but what about trainable annealing?
-                    loss_weight_layer.trainable = False
-                    self.model_loss_weights[lw] = loss_weight_layer
-                    annealed_losses.append(lw-1)
-            callbacks.append(BetaCallback(function= self.anneal_functions[lw-1], layer_names = annealed_losses))
+                    loss_weight_tensor = tf.Variable(self.anneal_functions[lw](1),  trainable = False, name ='annealed_weight_'+str(lw))
+                    #loss_weight_layer.trainable = False
+                    self.model_loss_weights[lw] = loss_weight_tensor
+                    annealed_losses.append(loss_weight_tensor)
+            print("**** ANNEALED LOSSES **** ")
+            callbacks.append(BetaCallback(functions= self.anneal_functions, layers = annealed_losses))
         return callbacks
+        print()
 
     def transform(self):
         pass
