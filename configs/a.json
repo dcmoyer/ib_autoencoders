@@ -1,0 +1,50 @@
+{
+	"epochs": 500,
+	"batch": 200,
+	"optimizer": "Adam",
+	"optimizer_params": {}, 
+	"lr": 0.001,
+	"encoder_dims": [200, 200, 50],
+	"decoder_dims": null,
+	"initializer": "glorot_uniform",
+	"activation": {  
+		"encoder": "softplus",
+		"decoder": "softplus"
+		},
+	"layers": [
+		{
+			"type": "add",
+			"layer": -1,
+			"encoder": true,
+			"k":1,
+			"density_estimator":
+			{
+				"type":"maf",
+				"layer_kwargs":{
+					"steps": 4,
+					"mean_only": false,
+					"layers": [640,640,640,50]
+				}
+			}
+		}
+	],
+	"output_activation" : "sigmoid",
+	"recon": "bce",
+	"losses":
+		[{
+			"type": "made_density",
+			"layer": -1, 
+			"encoder": true,
+			"weight": -1
+		},
+		{
+			"type": "gaussian_entropy",
+			"layer": 1, 
+			"encoder": true,
+			"weight": -1
+		}
+		],
+	"beta": 1.0,
+	"anneal_schedule": null, 
+	"anneal_function": null
+}

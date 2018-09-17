@@ -13,7 +13,14 @@ class Dataset(ABC):
         pass
 
     def shrink_supervised(self, per_label):
-        pass
+        for i in np.unique(self.y_train[:self.x_train.shape[0]]):
+            l = np.squeeze(np.array(np.where(self.y_train[:self.x_train.shape[0]] == i)))
+            np.random.shuffle(l)
+            try:
+                data = np.vstack((data, self.x_train[l[:per_label], :]))
+            except:
+                data = self.x_train[l[:per_label], :]
+        self.x_train = data
 
     #def num_samples(self):
 
@@ -51,6 +58,7 @@ class MNIST(Dataset):
 
         self.x_train, self.x_test, self.y_train, self.y_test = self.get_data()
         self.x_train = self.x_train[:(self.x_train.shape[0]-val), :]
+        self.y_train = self.y_train[:(self.y_train.shape[0]-val)]
         self.x_val = self.x_train[(self.x_train.shape[0]-val):, :]
 
         if per_label is not None:
@@ -108,6 +116,7 @@ class fMNIST(Dataset):
         self.x_train, self.y_train = self.get_data(kind='train')
         self.x_test, self.y_test = self.get_data(kind='test')
         self.x_train = self.x_train[:(self.x_train.shape[0]-val), :]
+        self.y_train = self.y_train[:(self.y_train.shape[0]-val)]
         self.x_val = self.x_train[(self.x_train.shape[0]-val):, :]
 
     def get_data(self, kind = 'train', path = None):

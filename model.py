@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import json
 from collections import defaultdict
 from keras import backend as K
-from layers import Beta
+from layers import Beta, MADE, MADE_network
 from keras.layers import Input, Dense, merge, Lambda, Flatten #Concatenate, 
 from keras.layers import Activation, BatchNormalization, Lambda, Reshape
 from keras.callbacks import Callback, TensorBoard, LearningRateScheduler
@@ -16,13 +16,14 @@ import keras.models
 import keras.layers
 import keras.optimizers
 import keras.initializers
-import utils
+#import utils
 import layer_args
 from loss_args import Loss
 import dataset
 import losses as l
 import analysis
 import pickle
+import warnings
 from callbacks import BetaCallback
 
 K.set_image_dim_ordering('tf')
@@ -50,21 +51,23 @@ class WrapModel(Model):
 
 
 class NoiseModel(Model):
-    def __init__(self, dataset, args_dict = {}, config = None, filename = 'model_stats'):
+    def __init__(self, dataset, args_dict = {}, config = None, filename = 'model_stats', verbose = True):
         # dflt as dictionary (set by session)
         #if dflt is None:
         #   args = utils.load_from_config('configs/dflt.json')
         # All failed dictionary reads first check default config, then fall back to given value
         self.filename = filename
+        self.verbose = verbose
         self.args = {
             'dataset': 'mnist', # specify + import dataset class
+            'per_label': None,
             'epochs': 100,
             'batch': 100,
             'optimizer': 'Adam',
             'initializer': 'glorot_uniform',
             'optimizer_params': {},
             'lr': 0.001,
-            'lr_lagr': .1,
+            'lr_lagr': .01,
             'input_shape': None,
             'activation': {'encoder': 'softplus', 'decoder': 'softplus'},
             'output_activation': 'sigmoid',
@@ -79,15 +82,20 @@ class NoiseModel(Model):
             'metrics': None,
             'constraints': None,
             'lagrangian_fit': False,
+            'mismatch': None,
             'beta': 1.0,
             'anneal_schedule': None,
             'anneal_functions': None,
         }
         if config is not None:
             if isinstance(config, dict):
-                self.args.update(config)
+                self.config = config
             else:
-                self.args.update(json.load(open(config)))
+                try:
+                    self.config = json.load(open(config))
+                except:
+                    self.config = json.load(open('configs/'+config))
+            self.args.update(self.config)
 
         # read kwargs into dictionary
         self.args.update(args_dict) 
@@ -101,6 +109,7 @@ class NoiseModel(Model):
         # initialize dictionary (with keys = layer index) of dict of called layers (keys = 'stat', 'act')
         self.encoder_layers = [] #defaultdict(dict)
         self.decoder_layers = [] #defaultdict(dict)
+        self.density_estimators = []#defaultdict(list)
 
     def _parse_args(self):
         
@@ -114,6 +123,10 @@ class NoiseModel(Model):
             pass
         elif self.dataset == 'dsprites':
             self.dataset = dataset.DSprites()
+        
+        if self.per_label is not None:
+            self.dataset.shrink_supervised(self.per_label)
+
         # Training Params
         #self.epochs = args.get('epochs', dflt.get('epochs', 100))
         #self.batch = args.get('batch', dflt.get('batch', 100))
@@ -133,8 +146,9 @@ class NoiseModel(Model):
                 self.lr_callback = isinstance(self.lr, str)
             except:
                 #self.lr = dflt.get('lr', .001)
-                raise Warning("Cannot find LR Schedule function.  Proceeding with default, constant learning rate.")    
-
+                print()
+                warnings.warn("Cannot find LR Schedule function.  Proceeding with default, constant learning rate.")    
+                print()
 
         # self.lr = args.get('lr', dflt.get('latent_dims', .001)) 
         # try:
@@ -224,7 +238,7 @@ class NoiseModel(Model):
             print('*** ANNEAL FUNCTION ***')
             print(self.anneal_functions)
 
-        self.lagrangian_fit = self.constraints or self.constraints is not None
+        self.lagrangian_fit = (self.constraints or self.constraints is not None) or (self.mismatch or self.mismatch is not None) #or not (not self.mismatch))
         
         if isinstance(self.recon, list):
             self.recon = str(self.recon[0])
@@ -375,7 +389,7 @@ class NoiseModel(Model):
         if not self.lagrangian_fit:
             #self.model.compile(optimizer = self.optimizer, loss = self.model_losses, loss_weights = self.model_loss_weights) # metrics?
             hist = self.model.fit(x_train, ([x_train] if y_train is None else [y_train])*len(self.model_outputs), 
-                               epochs = self.epochs, batch_size = self.batch, callbacks = callbacks)
+                               epochs = self.epochs, batch_size = self.batch, callbacks = callbacks, verbose = self.verbose)
             self.hist= hist.history
         else:
             self.lagrangian_optimization(x_train, y_train, x_val, y_val)
@@ -387,9 +401,11 @@ class NoiseModel(Model):
         # how to get activation layers?
         examples = x_train[:self.batch]
         z = self._encoder(x = examples)
-        x_pred = self._decoder(z)         
+        try:
+            x_pred = self._decoder()            
+        except:
+            x_pred = self._decoder(K.expand_dims(K.expand_dims(z,2), 3))
 
-        
         means = np.mean(z, axis = 0)
         sigs = np.sqrt(np.var(z, axis = 0))
 
@@ -399,7 +415,8 @@ class NoiseModel(Model):
                         z_act = z,
                         imgs = 3,
                         means = means,
-                        sigmas = sigs)
+                        sigmas = sigs,
+                        prefix = self.filename)
 
         if self.encoder_dims[-1] == 2:
             analysis.manifold(z, x_pred, per_dim = 50, dims = self.dataset.dims, location = 'results/'+self.filename)
@@ -503,7 +520,7 @@ class NoiseModel(Model):
         return get_z_mean, get_z_var if x is None else get_z_mean([x])[0], get_z_var([x])[0]
         #return get_z if x is None else get_z([x])[0]    
 
-    def _decoder(self, x = None):
+    def _decoder(self, z = None):
         for i in self.model.layers:
             if 'z_act' in i.name or 'echo' in i.name:
                 final_latent = i.name
@@ -514,7 +531,7 @@ class NoiseModel(Model):
         call_ = False
         for layr in self.model.layers:
             # only call decoder layer_list
-            if call_ and not isinstance(layr, keras.layers.core.Lambda):#and not ('vae' in layr.name or 'noise' in layr.name or 'info_dropout' in layr.name):
+            if call_ and not isinstance(layr, keras.layers.core.Lambda) and not isinstance(layr, MADE) and not isinstance(layr, MADE_network):#and not ('vae' in layr.name or 'noise' in layr.name or 'info_dropout' in layr.name):
                 z_out = layr(z_out)
             if layr.name == final_latent:
                 call_ = True
@@ -522,7 +539,7 @@ class NoiseModel(Model):
             #if layr.name == 'decoder' or layr.name == 'ci_decoder':
             #    call_ = False
         generator = keras.models.Model(input = [z_inp], output = [z_out])
-        return generator
+        return generator if z is None else generator.predict(z) 
 
     def _make_losses(self, metrics = False):
         if metrics:
@@ -576,18 +593,28 @@ class NoiseModel(Model):
                 for j in range(len(inputs_layer)): # 'stat' or 'act'
                     # enc / dec already done
                     layers = self.encoder_layers if enc else self.decoder_layers
+                    layers = layers if not 'density' in loss.type else self.density_estimators
+                    #if 'density' in loss.type:
+                        #print('density ', list(self.density_estimators.keys()))
                     lyr = loss.layer 
                      
                     #  'stat' or 'act' for enc/dec layer # lyr
                     if 'act' in inputs_layer[j] or 'addl' in inputs_layer[j]:
                         #if not loss.encoder and lyr in [-1, len(self.decoder_dims)-1]:
                         #    layers[lyr]['act'].insert(0, self.recon_true)
+                        #if isinstance(layers[lyr][inputs_layer[j]], list):
+                        #    outputs.extend([l for l in layers[lyr][inputs_layer[j]]])
+                        #else:
                         outputs.extend(layers[lyr][inputs_layer[j]])
                         print("*** adding (act/addl) ", layers[lyr][inputs_layer[j]])
                         print(layers[lyr][inputs_layer[j]])
                     elif 'stat' in inputs_layer[j]:
-                        print('adding stat from ', layers[lyr], 'choosing lyr_arg', inputs_layer[j])
-                        outputs.extend(layers[lyr][inputs_layer[j]][0])
+                        try:
+                            outputs.extend(layers[lyr][inputs_layer[j]][0])
+                            print('adding stat from ', layers[lyr], 'choosing lyr_arg', inputs_layer[j])
+                        except:
+                            print('adding stat from ', layers[-1], 'choosing lyr_arg', inputs_layer[j])
+                            outputs.extend(layers[-1][inputs_layer[j]])
 
                 for j in range(len(inputs_output)):
                     layers = self.decoder_layers
@@ -612,10 +639,14 @@ class NoiseModel(Model):
                         outputs.extend(layers[lyr][inputs_output[j]][0])
                     # not handling 'addl' tensors
 
-                print('outputs for layer ', outputs, [K.int_shape(o) for o in outputs])
-                for i in range(len(outputs)):
-                    outputs[i] = Flatten()(outputs[i]) if len(K.int_shape(outputs[i])) > 2 else outputs[i]
-                    #for o in outputs if len(K.int_shape(o))>2]
+                #print('outputs for layer ', outputs, [K.int_shape(o) for o in outputs])
+                try:
+                    for j in range(len(outputs)):
+                        outputs[j] = Flatten()(outputs[j]) if len(K.int_shape(outputs[j])) > 2 else outputs[j]
+                except:
+                    for j in range(len(outputs)):
+                        for k in range(len(outputs[j])):
+                            outputs[j][k] = Flatten()(outputs[j][k]) if len(K.int_shape(outputs[j][k])) > 2 else outputs[j][k]
                 
                 #[-1, np.prod([i for i in o.get_shape().as_list()[1:] if i is not None])]) for o in outputs]
                 #o.get_shape().as_list()[1:])]) for o in outputs]
@@ -630,12 +661,24 @@ class NoiseModel(Model):
                     except:
                         self.loss_inputs = []
                         self.loss_inputs.append(outputs)
-                    self.model_outputs.append(self.loss_functions[-1](outputs))
+                    try:
+                        self.model_outputs.append(self.loss_functions[-1](outputs))
+                    except:
+                        self.model_outputs.append(self.loss_functions[-1](outputs[0]))
                     self.model_losses.append(l.dim_sum)
                     self.model_loss_weights.append(loss.get_loss_weight())
                 print("OUTPUTS ", self.model_outputs)
                 print("Losses: ", self.model_losses)
-                
+
+            def reg_losses(tensors):
+                print('tensors ', [t.name for t in tensors])
+                return [K.sum(t, keepdims=True) for t in tensors if 'reg' in t.name]
+            
+            #if len(reg_losses(self.model_outputs))>1:
+            #    self.model_outputs.append(Lambda(tf.add_n, name = 'sum_regs')(Lambda(reg_losses, name = 'add_regs')(self.model_outputs)))
+            #    self.model_losses.append(l.dim_sum)
+            #    self.model_loss_weights.append(0)
+
             # losses are all Lambda layers on tensors to facilitate optimization in tensorflow
                 # return dimension-wise loss and then sum in dummy loss function?
 
@@ -654,18 +697,15 @@ class NoiseModel(Model):
         print()
         print("MAKING CALLBACKS ", self.anneal_functions)
         if self.anneal_functions:
-            print(list(self.anneal_functions.keys()))
+            
             annealed_losses = []
             for lw in range(len(self.model_loss_weights)):
-                #try:
                 if (lw) in [int(i) for i in list(self.anneal_functions.keys())]:
-                    #loss_weight_layer = Beta(beta = self.anneal_functions[lw](1), name = 'anneal_'+str(lw))(self.input_tensor)
-                    # ALL FALSE... but what about trainable annealing?
                     loss_weight_tensor = tf.Variable(self.anneal_functions[lw](1),  trainable = False, name ='annealed_weight_'+str(lw))
                     #loss_weight_layer.trainable = False
                     self.model_loss_weights[lw] = loss_weight_tensor
                     annealed_losses.append(loss_weight_tensor)
-            print("**** ANNEALED LOSSES **** ")
+            
             callbacks.append(BetaCallback(functions= self.anneal_functions, layers = annealed_losses))
         return callbacks
         print()
@@ -711,12 +751,27 @@ class NoiseModel(Model):
         print()
         print(layers_list)
         print()
+
         for layer_ind in range(len(dims)):
             #if layer_ind == len(dims):
                 # if prev layer is convolutional
-
-
-            layers_list.append(defaultdict(list))
+            density = None
+            if encoder:
+                #self.encoder_layers = defaultdict(list)
+                layers_list = self.encoder_layers
+                dims = self.encoder_dims
+                ind_latent = self._enc_latent_ind
+                offset = 0
+                #ind_args = self._enc_ind_args
+            else:
+                #self.decoder_layers = defaultdict(list)
+                layers_list = self.decoder_layers
+                dims = self.decoder_dims
+                ind_latent = self._dec_latent_ind
+                offset = len(self.encoder_layers)
+                #ind_args = self._dec_ind_args
+            print("***** PROCESSING LAYER ***** ", "encoder " if encoder else "decoder ", layer_ind)
+            print("layers list ", layers_list, layer_ind)
 
             if layer_ind == 0:
                 if input_list is not None:
@@ -725,8 +780,11 @@ class NoiseModel(Model):
                     raise ValueError("Feed input tensor to _build_architecture")
             else:
                 # list of inputs ([] to start)
-                current_call = layers_list[layer_ind-1]['act']
-                
+                print("layers list ", layers_list, layer_ind-1)
+                try:
+                    current_call = layers_list[layer_ind-1]['act']
+                except:
+                    current_call = self.decoder_layers[layer_ind-1]['act']
 
             if layer_ind in ind_latent:
                 # retrieve layer_arguments index for given encoding layer
@@ -738,7 +796,18 @@ class NoiseModel(Model):
 
                 if "echo" in self.layers[arg_ind]['type'] or self.layers[arg_ind]['type'] in ['bir', 'constant_additive']:
                     self.layers[arg_ind]['layer_kwargs']['batch'] = self.batch 
-                
+                    
+                try:
+                    if self.layers[arg_ind]['density_estimator']['type'] in ['maf', 'masked_arf']: 
+                        density = layer_args.Layer(**self.layers[arg_ind]['density_estimator']) 
+                except:
+                    pass
+                #:if self.layers[arg_ind]['type'] in ['maf', 'masked_arf']:
+                    #self.density_estimators
+                    #layers_list = self.density_estimators
+                    #or self.layers[arg_ind]['type'] in ['bir', 'constant_additive']:
+
+
                 layer = layer_args.Layer(** self.layers[arg_ind])
             else:
                 # default Dense layer
@@ -755,65 +824,93 @@ class NoiseModel(Model):
                                         'layer_kwargs': {'activation': act,
                                             'kernel_initializer': self.initializer,
                                             'bias_initializer': self.initializer}})
-        
-            print('layer size ', layer.latent_dim, ' kw args: ', layer.layer_kwargs)
-            # each function holds is a dictionary with 'stat' and 'act' (each of length k, with stats items [z_mean, z_var])
-            functions = layer.make_function_list(index = layer_ind)
 
-            # each k_layer is length k
-            # each k_layer is called on the previous one (k_layer[1](k_layer[0]))
-            # uses zip to call k = 0 index through layers 
-            #       e.g. k_layer[2][0](k_layer[1][0](k_layer[0][0])))
-            
-            stat_k = functions['stat']
-            act_k = functions['act']
-            addl_k = functions['addl']
+            for mode in range(2):
+                if mode == 1:
+                    print("*** DENSITIES *** ", density)
+                    if density is not None:
+                        functions = density.make_function_list(index = layer_ind)
+                        layers_list = self.density_estimators
+                        layers_list.append(defaultdict(list))
+                    else:
+                        continue
+                        #self.density_estimators.append(defaultdict(list))
+                        #continue
+            # add for recording 'stat', 'act', etc.  moved to account for self.density_estimators (MADE changes layers_list)
+                else:   
+                    layers_list = self.encoder_layers if encoder else self.decoder_layers
+                    layers_list.append(defaultdict(list))
+                    print('layer size ', layer.latent_dim, ' kw args: ', layer.layer_kwargs)
+                    # each function holds is a dictionary with 'stat' and 'act' (each of length k, with stats items [z_mean, z_var])
+                    functions = layer.make_function_list(index = layer_ind)
 
-            if stat_k:
-                current = current_call[0]
-                intermediate_stats = []
-                for k in range(len(stat_k)):
-                    # do all of these need to be same length?
-                    stat_lyr = stat_k[k]
-                    # needed to create list of z_mean, z_var to append to layers_list
-                    for z in stat_lyr:
-                        intermediate_stats.append(z(current))
-                    layers_list[layer_ind]['stat'].append(intermediate_stats)
-                current_call = layers_list[layer_ind]['stat']
-                    # call act k layer on stat k [z_mean, z_var]
-                    #for stat, act in zip(layers_list[layer_ind]['stat'], act_k):
-                    #    print('stat ', stat, 'act ', act)
-                    #    layers_list[layer_ind]['act'].append(act(stat))
-            if len(act_k) < len(current_call):
-                act_k = [a for idx in range(int(len(current_call)/len(act_k))) for a in act_k]
+                # each k_layer is length k
+                # each k_layer is called on the previous one (k_layer[1](k_layer[0]))
+                # uses zip to call k = 0 index through layers 
+                #       e.g. k_layer[2][0](k_layer[1][0](k_layer[0][0])))
+                
+                stat_k = functions['stat']
+                act_k = functions['act']
+                addl_k = functions['addl']
+
+                if stat_k:
+                    current = current_call[0]
+                    intermediate_stats = []
+                    for k in range(len(stat_k)):
+                        # do all of these need to be same length?
+                        stat_lyr = stat_k[k]
+                        # needed to create list of z_mean, z_var to append to layers_list
+                        for z in stat_lyr:
+                            intermediate_stats.append(z(current))
+                        layers_list[layer_ind]['stat'].append(intermediate_stats)
+                    current_call = layers_list[layer_ind]['stat']
+                        # call act k layer on stat k [z_mean, z_var]
+                        #for stat, act in zip(layers_list[layer_ind]['stat'], act_k):
+                        #    print('stat ', stat, 'act ', act)
+                        #    layers_list[layer_ind]['act'].append(act(stat))
+                if len(act_k) < len(current_call):
+                    act_k = [a for idx in range(int(len(current_call)/len(act_k))) for a in act_k]
 
 
-            for k in range(len(act_k)):
-                act_lyr = act_k[k]
-                if isinstance(current_call, list):
-                    current = current_call[k] if len(current_call) > 1 else current_call[0]
+                for k in range(len(act_k)):
+                    act_lyr = act_k[k]
+                    if isinstance(current_call, list):
+                        current = current_call[k] if len(current_call) > 1 else current_call[0]
 
-                print("CURRENT (i.e. prev layer) ", current, current_call)
-                a = act_lyr(current) # if not echo_flag else act_lyr(current)[0]
-                layers_list[layer_ind]['act'].append(a)
+                    print("CURRENT (i.e. prev layer) ", current, current_call)
+                    a = act_lyr(current) # if not echo_flag else act_lyr(current)[0]
+                    try:
+                        layers_list[layer_ind]['act'].append(a)
+                        current_call = layers_list[layer_ind]['act']
+                    except:
+                        layers_list[-1]['act'].append(a)
+                        #current_call = layers_list[-1]['act']
+                    # ADDED FOR MADE
+                
 
-            for k in range(len(addl_k)):
-                print()
-                print("echo capacity layer:")
-                print("CURRENT (i.e. prev layer) ", current, current_call)
-                addl_lyr = addl_k[k]
-                print("addl_lyr")
-                if isinstance(current_call, list):
-                    print("current is a list")
-                    current = current_call[k] if len(current_call) > 1 else current_call[0]
-                print("calling")
-                a = addl_lyr(current)
-                print("done calling")
-                layers_list[layer_ind]['addl'].append(a)
-                print("appended")
-                print("ADDL for last LAYER ", layers_list[layer_ind]['addl'])
+                for k in range(len(addl_k)):
+                    print()
+                    print("echo capacity layer:")
+                    print("CURRENT (i.e. prev layer) ", current, current_call)
+                    addl_lyr = addl_k[k]
+                    print("addl_lyr")
+                    if isinstance(current_call, list):
+                        print("current is a list")
+                        current = current_call[k] if len(current_call) > 1 else current_call[0]
+                    print("calling")
+                    a = addl_lyr(current)
+                    print("done calling")
+                    try:
+                        layers_list[layer_ind]['addl'].append(a)
+                        #current_call = layers_list[layer_ind]['act']
+                    except:
+                        layers_list[-1]['addl'].append(a)
+                        #current_call = layers_list[-1]['act']
+                    print("appended")
+                    #print("ADDL for last LAYER ", layers_list[layer_ind]['addl'])
                 #for new, prev in zip(act_lyr, current_call):
                 #layers_list[layer_ind]['act'].append(act_lyr(current))
+
 
             # for k_layer in functions:
             #     # each k_layer holds k functional layers (or lists, e.g. [z_mean,z_var]) 
@@ -836,9 +933,11 @@ class NoiseModel(Model):
             #             layers_list[layer_ind].append(lyr_output)
              
             if encoder:
-                print('encoder layer', layer_ind, ': ', layers_list[layer_ind])
+                layers_list = self.encoder_layers
+                #print('encoder layer', layer_ind, ': ', layers_list[layer_ind])
             else:
-                print('decoder layer', layer_ind, ': ', layers_list[layer_ind])
+                layers_list = self.decoder_layers
+                #print('decoder layer', layer_ind, ': ', layers_list[layer_ind])
             #return self.encoder_layers
             
         return layers_list
@@ -846,27 +945,58 @@ class NoiseModel(Model):
 
     def lagrangian_optimization(self, x_train, y_train = None, x_val = None, y_val = None, 
                    min_lagr = .001, max_lagr = 100.0):
+
         lagrangians = []
         lagr_vars = []
-        for i in range(len(self.constraints)):
-            constraint = self.constraints[i]
-            init = self.model_loss_weights[constraint['loss']]*1.0
-            try:
-                sign = -1 if 'geq' in constraint['relation'] or 'greater' in constraint['relation'] else 1
-            except:
-                sign = 1
-
-            multiplier = tf.get_variable("lagr_"+str(i), initializer = init*sign, dtype = tf.float32)#, name = ) 
-            loss_tensor = self.model.outputs[constraint['loss']] #_losses[constraint['loss']]
+        if self.mismatch:
+            hidden_ind = [j for j in range(len(self.layers)) if self.config['layers'][j]['encoder']][-1]
+            conf = self.config.copy()
+            conf['layers'][hidden_ind]= {'type':'additive', 'layer':-1, 'k':1, 'encoder': True} #self.mismatch['type']
+            conf['losses'] = []
+            conf['constraints'] = []
+            self.build_mismatch_model(conf)
+            # note: don't train decoder, but share weights...
+            print("mismatch loss (outputs) ", self.mm.model.outputs)
+            mismatch_loss = self.mm.loss_weights*l.loss_val(self.mm.model.outputs[-1])
+            # CAREFUL WITH TRAINABLE VARIABLES (particularly since above trainer/lagr works off of all)
+            train_mm = tf.train.AdamOptimizer(self.lr).minimize(mismatch_loss, var_list = self.mm.model.trainable_weights)
             
-            lagrangians.append(multiplier*(l.loss_val(loss_tensor) - tf.constant(constraint['value']*1.0))) #= multiplier*(l.dimsum(loss_tensor) - constraint['value'])
+            mismatch_init = 1.0
+            sign = 1
+            multiplier = tf.get_variable("lagr_mm", initializer = mismatch_init, dtype = tf.float32)#, name = ) 
             lagr_vars.append(multiplier)
+            #lagrangian_loss =  multiplier*(K.abs(l.loss_val(self.model.outputs[-1] - self.mm.model.outputs[-1])))
+            print(self.model.outputs, ' metrics ', self.model.metrics_names)
+            lagrangian_loss =  multiplier*(K.abs(l.loss_val(self.model.outputs[-1])-l.loss_val(self.mm.model.outputs[-1])))
+            lagr_loss = -1#index
 
-        lagrangian_loss = tf.add_n(lagrangians) 
-        total_loss = tf.add_n([self.model_loss_weights[i]*l.loss_val(self.model.outputs[i]) for i in range(len(self.model.outputs)) if i != constraint['loss']]) + lagrangian_loss
+
+        else: # constraint
+            for i in range(len(self.constraints)):
+                constraint = self.constraints[i]
+                init = self.model_loss_weights[constraint['loss']]*1.0
+                try:
+                    sign = -1 if 'geq' in constraint['relation'] or 'greater' in constraint['relation'] else 1
+                except:
+                    sign = 1
+
+                multiplier = tf.get_variable("lagr_"+str(i), initializer = init*sign, dtype = tf.float32)#, name = ) 
+                loss_tensor = self.model.outputs[constraint['loss']] #_losses[constraint['loss']]
+                
+                #if not constraint.get('value', False) or constraint['value'] == 'prior':
+                #    constraint['value'] = l.gaussian_prior_kl(self.encoder_layers[-1]['stat'])
+
+                lagrangians.append(multiplier*(l.loss_val(loss_tensor) - tf.constant(constraint['value']*1.0))) #= multiplier*(l.dimsum(loss_tensor) - constraint['value'])
+                lagr_vars.append(multiplier)
+                lagr_loss = constraint['loss']
+
+            lagrangian_loss = tf.add_n(lagrangians) 
+
+        total_loss = lagrangian_loss + tf.add_n([self.model_loss_weights[i]*l.loss_val(self.model.outputs[i]) for i in range(len(self.model.outputs)) if i != lagr_loss]) 
         
         # all other parts of objective... 
-        other_vars = [v for v in tf.trainable_variables() if "lagr" not in v.name]
+        other_vars = [v for v in self.model.trainable_weights if "lagr" not in v.name]
+        #other_vars = [v for v in tf.trainable_variables() if "lagr" not in v.name]
 
         print("other vars ", other_vars)
         print("LAGR VARS ", lagr_vars)
@@ -882,6 +1012,10 @@ class NoiseModel(Model):
             #[tf.assign(self.l1, tf.minimum(tf.maximum(self.l1, 0.001), 100.0)),
             #tf.assign(self.l2, tf.minimum(tf.maximum(self.l2, 0.001), 100.0))
         #)
+        if self.anneal_functions:
+            anneal_loss_weights = self.anneal_loss_weights()
+            update_lw = tf.assign(anneal_loss_weights[l], self.anneal_functions[l](epoch))
+
 
         n_samples = x_train.shape[0]
         self.sess = tf.Session()
@@ -895,11 +1029,22 @@ class NoiseModel(Model):
                 lm_avg = []
                 perm = np.random.permutation(n_samples)  # random permutation of data for each epoch
                 
+                if self.anneal_functions:
+                    self.sess.run(update_lw)
+                   
+
                 for offset in range(0, (int(n_samples / self.batch) * self.batch), self.batch):  # inner
                     
                     batch_data = x_train[perm[offset:(offset + self.batch)]]
-                    result = self.sess.run([trainer, lagrangian_trainer],
+                    if self.mismatch:
+                        _, mm_loss, _, _, tl= self.sess.run([train_mm, mismatch_loss, trainer, lagrangian_trainer, total_loss],
                                            feed_dict={self.input_tensor: batch_data})
+                        epoch_avg['mismatch_recon'].append(np.mean(mm_loss))
+                        epoch_avg['total_loss'].append(np.mean(tl))
+                    else:
+                        result = self.sess.run([trainer, lagrangian_trainer, total_loss],
+                                           feed_dict={self.input_tensor: batch_data})
+                        epoch_avg['total_loss'].append(np.mean(result[-1]))
                     self.sess.run(lagr_clip)
                     #for j in range(len(lagr_vars)):
                     #    tf.clip_by_value(lagr_vars[j], min_lagr, max_lagr)
@@ -908,6 +1053,13 @@ class NoiseModel(Model):
                         # SLOW?  fix recording
                         batch_loss = self.sess.run(loss_layer, feed_dict={self.input_tensor: batch_data})
                         epoch_avg[loss_layer.name].append(np.mean(np.sum(batch_loss, axis = -1), axis = 0))
+                    
+                    # batch_loss = self.sess.run([ll for ll in self.model.outputs], feed_dict={self.input_tensor: batch_data})
+                    # for i in range(len(self.model.outputs)):
+                    #     # SLOW?  fix recording
+                    #     epoch_avg[self.model.outputs[i].name].append(np.mean(np.sum(batch_loss[i], axis = -1), axis = 0))
+
+
                     #print(self.sess.run(tf.group([i for i in lagr_vars])))#, feed_dict = {self.input_tensor:batch_data}))
                     lm_avg.append(self.sess.run(multiplier, feed_dict = {self.input_tensor:batch_data}))
                     #total_avg.append(self.sess.run(total_loss, feed_dict = {self.input_tensor: batch_data}))
@@ -915,14 +1067,16 @@ class NoiseModel(Model):
                     #others = self.sess.run(tf.add_n([self.model_loss_weights[i]*l.loss_val(self.model.outputs[i]) for i in range(len(self.model.outputs)) if i != constraint['loss']]), feed_dict = {self.input_tensor:batch_data})
                     #print("batch lagr mult ", lm_avg[-1], " lagr loss ", lagr_avg[-1], "+ ", others, " = total ", total_avg[-1])
                 #print("Epoch ", str(i), ": ", end ="")
-                for loss_layer in self.model.outputs:
+                for loss_layer in epoch_avg.keys():#self.model.outputs:
                     #epoch_loss = np.sum(epoch_avg[loss_layer.name])
-                    epoch_loss = np.mean(epoch_avg[loss_layer.name])  
-                    self.hist[loss_layer.name].append(epoch_loss)
-                    print(loss_layer.name.split("/")[0], " : ", epoch_loss, " \t ", end="")
+                    epoch_loss = np.mean(epoch_avg[loss_layer])  
+                    self.hist[loss_layer].append(epoch_loss)
+                    if self.verbose:
+                        print(loss_layer.split("/")[0], " : ", epoch_loss, " \t ", end="")
                 
-                print( "lagr ", np.mean(lm_avg))
-                print()
+                if self.verbose:
+                    print( "lagr ", np.mean(lm_avg))
+                    print()
                 for i in range(len(lagr_vars)):
                     self.hist[lagr_vars[i].name].append(np.mean(lm_avg))
                 #print(" Lagr mult for loss ", i, ": ", np.mean(lm_avg), "\t ", end="")
@@ -950,6 +1104,41 @@ class NoiseModel(Model):
                     #if i % 1000 == 999:
                         #print('Saving at {} into {}'.format(i, self.log_dir))
                         #saver.save(sess, os.path.join(self.log_dir, "model_{}.ckpt".format(i)))
+
+    def anneal_loss_weights(self):
+        anneal_lw=[]
+        for lw in range(len(self.model_loss_weights)):
+            if (lw) in [int(i) for i in list(self.anneal_functions.keys())]:
+                loss_weight_tensor = tf.Variable(self.anneal_functions[lw](1),  trainable = False, name ='annealed_weight_'+str(lw))
+                #loss_weight_layer.trainable = False
+                self.model_loss_weights[lw] = loss_weight_tensor
+                anneal_lw.append(loss_weight_tensor)
+        return anneal_lw
+
+
+    def build_mismatch_model(self, config):
+        self.mm = NoiseModel(dataset = self.dataset, config = config)
+        self.mm.encoder_layers = self.mm._build_architecture([self.input], encoder = True)
+        self.mm.output_layer = self._decoder()(self.mm.encoder_layers[len(self.mm.encoder_layers)-1]['act'])
+            
+            # want it to be the operation / keras model, called on 
+        recon_loss = Loss(**{'type': self.recon,
+                                    'layer': -1,
+                                    'encoder': False,
+                                    'weight': 1
+                                })
+        self.mm.loss_functions = recon_loss.make_function()
+        output = [self.recon_true, self.mm.output_layer]
+        self.mm.loss_outputs = self.mm.loss_functions(output)
+        self.mm.model_losses = l.dim_sum #(self.mm.loss_outputs)
+        self.mm.loss_weights = 1.0
+
+        self.mm.model = keras.models.Model(inputs = [self.input_tensor], outputs = [self.mm.loss_outputs])
+        self.mm.model.compile(optimizer = self.optimizer, loss = [self.mm.model_losses], loss_weights = [self.mm.loss_weights]) # metrics?
+        print(self.mm.model.summary())
+        self.sess = tf.Session()
+        with self.sess.as_default():
+            tf.global_variables_initializer().run()
 
 
 

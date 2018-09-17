@@ -13,7 +13,7 @@ import tensorflow as tf  # TF 1.0 or greater
 from tensorflow.python import debug as tf_debug
 import scipy.misc
 import models
-
+import keras.backend as K
 
 class Echo(object):
     """
@@ -160,8 +160,9 @@ class Echo(object):
                 capacities = tf.maximum(tf.nn.softplus(- cap_param), self.c_min, name='capacities')
             else:
                 capacities = tf.identity(0., name='capacities')
-            reg = tf.reduce_sum(capacities, name="capacity")
-            loss = tf.add(recon_loss, reg, name='total_loss')
+            self.reg = tf.reduce_sum(capacities, name="capacity")
+            self.regvar = K.var(capacities)
+            loss = tf.add(recon_loss, self.reg, name='total_loss')
         return loss
 
     def transform(self, x):
@@ -211,9 +212,10 @@ class Echo(object):
                 t0 = time.time()
                 for offset in range(0, (int(self.n_samples / self.batch_size) * self.batch_size), self.batch_size):  # inner
                     batch_data = load_data(data, perm[offset:(offset + self.batch_size)])
-                    result = self.sess.run([train_step, summary_train, self.loss],
+                    result = self.sess.run([train_step, summary_train, self.loss, self.reg, self.regvar],
                                            feed_dict={self.input_tensor: batch_data})
-                    summary, loss = result[1], result[2]
+                    summary, loss, reg = result[1], result[2], result[3]
+                    regvar = result[4]
                 writer.add_summary(summary, i)
                 if val_data is not None:
                     assert len(val_data) == self.batch_size, "Must compare with batches of equal size"
@@ -225,8 +227,8 @@ class Echo(object):
                     val_loss = np.nan
                 if self.verbose:
                     t = time.time()
-                    print('{}/{}, Loss:{:0.3f}, Val:{:0.3f}, Seconds: {:0.1f}'.
-                          format(i, self.epochs, loss, val_loss, t - t0))
+                    print('{}/{}, Loss:{:0.3f}, Val:{:0.3f}, Echo:{:0.3f}, EchoVar:{:0.3f}, Seconds: {:0.1f}'.
+                          format(i, self.epochs, loss, val_loss, reg, regvar, t - t0))
                     if i % 1000 == 999:
                         print('Saving at {} into {}'.format(i, self.log_dir))
                         saver.save(self.sess, os.path.join(self.log_dir, "model_{}.ckpt".format(i)))

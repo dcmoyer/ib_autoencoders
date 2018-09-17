@@ -2,7 +2,6 @@ import numpy as np
 import json
 import itertools
 from utils import make_dir
-import time
 import os
 import copy
 import model
@@ -21,12 +20,15 @@ def nested_dict(d, keys, value):
 
 class Session(object):
     # LOOP OVER CONFIG FILES ?  or LOOP within CONFIG FILES
-    def __init__(self, name = None, config = None, dataset = None, parameters = None):
+    def __init__(self, name = None, config = None, dataset = None, parameters = None, time="00:59:59", verbose = False, per_label = None, vary_together = False):
         self.model_args = None
+        self.verbose = verbose
+        self.time = time
+        self.per_label = per_label
 
         if name is None:
-            t = time.time()
-            name = str('session'+str(round(t,3)-round(t,0)))
+            t = np.random.rand()
+            name = str('session'+str(round(t,3)))
 
         self.name = name
         #self.configs = [self.load_config(config)]
@@ -39,25 +41,35 @@ class Session(object):
             self.configs = {}
             for key in parameters.keys():
                 ksplit = key.split('.')
-                for i in range(len(parameters[key])):
-                    self.configs[parameters[key][i]] = self.load_config(config)
-                    # keep tuple of param values as dict key
-                    # call nested_dict for each of params
-                    nested_dict(self.configs[parameters[key][i]], ksplit, parameters[key][i])
-
+                if not vary_together or not self.configs:
+                    for i in range(len(parameters[key])):
+                        self.configs[parameters[key][i]] = self.load_config(config)
+                        if vary_together:
+                            for k in parameters.keys():
+                                ksplit = k.split('.')
+                                # keep tuple of param values as dict key
+                                # call nested_dict for each of params
+                                nested_dict(self.configs[parameters[key][i]], ksplit, parameters[key][i])
+                print(self.configs[parameters[key][i]]['losses'])
         self.run_configs(dataset)
 
-    def run_configs(self, dataset, time ="00:59:59"):# rd_curves = True):
+    def run_configs(self, dataset):# time ="00:59:59"):# rd_curves = True):
         histories = []
         test_results = []
         indices = []
 
 
         # mkdir
-        folder = os.path.join('results', str(self.name)+'_'+str(dataset.name))
+        try:
+            folder = os.path.join('results', str(self.name)+'_'+str(dataset.name))
+            data_name = dataset.name
+        except:
+            folder = os.path.join('results', str(self.name)+'_'+str(dataset))
+            data_name = str(dataset)
         #folder = os.path.join('results', str(self.name)+'_'+str(dataset.name)+'_'+self.config.split('.json')[0])
         if not os.path.exists(folder):
             os.mkdir(folder)
+            print(os.path.join(folder, "exec"))
             os.mkdir(os.path.join(folder, "exec"))
 
         exfilename = os.path.join(folder, "base_config.txt")
@@ -79,22 +91,28 @@ class Session(object):
             config_str = json.dumps(config).replace("'", '"')
             #sess = tf.Session()
             #K.set_session(sess)
+            print("config ", config_str)
+            print(type(config_str))
+            print()
             # write python file
+            print("***DATASET*** ", data_name, " *** per_label ", self.per_label)
             statements = [
                 "#!/bin/bash",
-                "cd /home/rcf-proj/gv/brekelma/autoencoders",
-                "python3 test.py --filename \'{fn}\' --config \'{conf}\' ".format(
-                    name = self.name, param = param, time = time, conf = config_str, fn = os.path.join(folder, str(self.name+'_'+str(param))))
-            ]
-
+                "cd /home/rcf-proj/gv/brekelma/autoencoders"]#,
+            if self.per_label is not None:
+                statements.append("python3 test.py --filename \'{fn}\' --config \'{conf}\' --verbose {v} --dataset {dn} --per_label {pl}".format(
+                    name = self.name, param = param, time = self.time, conf = config_str, fn = os.path.join(folder, str(self.name+'_'+str(param))), v = self.verbose, dn = data_name, pl = self.per_label))
+            else:
+                statements.append("python3 test.py --filename \'{fn}\' --config \'{conf}\' --verbose {v} --dataset {dn}".format(
+                    name = self.name, param = param, time = self.time, conf = config_str, fn = os.path.join(folder, str(self.name+'_'+str(param))), v = self.verbose, dn = data_name))
             # Write executable
             exfilename = os.path.join(folder, "exec", "dummy_"+str(count)+".sh")
             with open(exfilename, 'w+') as exfile:
                 #exfile.write("#!/usr/bin/env python\n\n")
                 #for imp in set(imports):
                 #    exfile.write("import %s\n" % imp)
-                for k in self.parameters.keys():
-                    exfile.write(k+" : "+str(self.parameters[k])+"\n")
+                #for k in self.parameters.keys():
+                #    exfile.write(k+" : "+str(self.parameters[k])+"\n")
                 for st in statements:
                     exfile.write(st+"\n")
             os.chmod(exfilename, 0o755)
@@ -102,13 +120,13 @@ class Session(object):
 
             # SBATCH + read pickle?
             cmd = 'sbatch --job-name {name}_{param} --time {time}\
-            --gres=gpu:1 --ntasks=8 --wrap="./{folder}/exec/dummy_{ct}.sh"'.format(name = self.name, param = param, time = time, folder = folder, ct = str(count))
+            --gres=gpu:1 --ntasks=8 --wrap="./{folder}/exec/dummy_{ct}.sh"'.format(name = self.name, param = param, time = self.time, folder = folder, ct = str(count))
             #\" python3 test.py -filename \'{fn}\' -config \'{conf}\'  \"'.format(
              #       name = self.name, param = param, time = time, conf = config_str, fn = os.path.join(folder, str(self.name+'_'+str(param))))
 
             # del python file
             count = count + 1
-            
+            print("Command ", cmd)
             #!/bin/bash                                                                                                                                                       
             #SBATCH --ntasks=8                                                                                                                                                
             #SBATCH --time=00:59:00                                                                                                                                           

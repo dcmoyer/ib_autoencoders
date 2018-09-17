@@ -32,18 +32,22 @@
 			"type": "echo",
 			"layer": -1, 
 			"encoder": true,
-			"weight": 1
+			"weight": 0.1
+			},
+			{
+			"type": "mse",
+			"layer": -1, 
+			"encoder": false,
+			"weight": 0.0
 			}
-		],
-	"constraints":[
-		{
-			"loss": 0,
-			"value": 10.0,
-			"relation:": "equal"
-		}
-	],
+		], 	
+	"constraint":
+	[{
+		"loss":0,
+		"value":"prior"
+	}],
 	"beta": 1.0,
-	"mismatch": null,
+	"mismatch": false,
 	"anneal_schedule": null, 
 	"anneal_functions": null
 }

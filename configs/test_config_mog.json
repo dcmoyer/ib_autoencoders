@@ -1,0 +1,39 @@
+{
+	"epochs": 50,
+	"batch": 100,
+	"optimizer": "Adam",
+	"optimizer_params": {}, 
+	"lr": "iwae_lr_sched",
+	"latent_dims": [200, 200, 10],
+	"decoder_dims": null,
+	"layers": 
+		[	
+			{
+			"layer": -1, 
+			"encoder": true,
+			"type": "add",	
+			"k": 1
+			}
+		], 
+	"initializer": "glorot_uniform",
+	"activation": {  
+		"encoder": "softplus",
+		"decoder": "softplus"
+		},
+	"output_activation" : "sigmoid",
+	"recon": "bce", 
+	"losses":
+		[
+			{
+			"type": "mi_marginal",
+			"layer": -1, 
+			"encoder": true,
+			"weight": 1, 
+			"output": -1, 
+			"method": "mixture"
+			}
+		],
+	"beta": 1.0, 
+	"anneal_schedule": null, 
+	"anneal_function": null
+}

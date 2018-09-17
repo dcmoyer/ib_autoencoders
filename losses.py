@@ -1,11 +1,10 @@
 import sys
-import utils
 import numpy as np
 import tensorflow as tf
 from keras import backend as K
 from keras import objectives
 import keras.losses
-from keras.layers import Lambda, Concatenate, average, concatenate
+from keras.layers import Lambda, Concatenate, average, concatenate, add
 from keras.callbacks import Callback, TensorBoard
 sys.path.insert(1, '/Users/brekels/autoencoders/')
 import layers
@@ -16,6 +15,35 @@ from sklearn.metrics import log_loss
 EPS = K.epsilon()
 # EVERYTHING RETURNS BATCH X value AS DEFAULT (may sum or average if see fit)
     # return_dimensions option?
+
+def dim_sum(true, tensor):
+    #print('DIMSUM TRUE ', _true)
+    #print('DIMSUM Tensor ', tensor)
+    return K.sum(tensor, axis = -1)
+
+def dim_sum_one(tensor):
+    #print('DIMSUM TRUE ', _true)
+    #print('DIMSUM Tensor ', tensor)
+    return K.sum(tensor, axis = -1)
+
+def identity(true, tensor):
+    return tensor
+
+def loss_val(tensor):
+    return K.mean(K.sum(tensor, axis = -1), axis = 0)
+
+def sum_all(tensor):
+    return K.sum(tensor)
+
+def logsumexp(x, axis = -1, keepdims = False):
+    #return tf.reduce_logsumexp(mx, axis = axis)
+    m = K.max(x, axis=axis, keepdims = True) # keep dims for broadcasting
+    return m + K.log(K.sum(K.exp(x - m), axis=axis, keepdims=keepdims)) + K.epsilon()
+
+def logmeanexp(x, axis = -1, keepdims = False):
+    m = K.max(x, axis=axis, keepdims= True)
+    return m + K.log(K.mean(K.exp(x - m), axis=axis, keepdims=keepdims)) + K.epsilon()
+
 
 def bir(inputs):
     z_mean, z_logvar = inputs
@@ -32,7 +60,7 @@ def compute_kernel(x, y):
     return tf.exp(-tf.reduce_mean(tf.square(tiled_x - tiled_y), axis=2) / tf.cast(dim, tf.float32))
 
 
-def mmd_loss(inputs, gaussian = True):
+def mmd_loss(inputs, kernel = 'gaussian', gaussian = True, d=500, gamma = 1.0):
     print("INPUTS: ", inputs)
     print("mmd ")
     if not isinstance(inputs, list):
@@ -43,11 +71,41 @@ def mmd_loss(inputs, gaussian = True):
         p = tf.random_normal(tf.shape(q))
     else:
         q, p = inputs
-    q_kernel = compute_kernel(q, q)
-    p_kernel = compute_kernel(p, p)
-    qp_kernel = compute_kernel(q, p)
-    mmd = tf.reduce_mean(q_kernel) + tf.reduce_mean(p_kernel) - 2 * tf.reduce_mean(qp_kernel)
-    return tf.expand_dims(tf.expand_dims(mmd, 0), 1)
+    
+    if kernel == 'gaussian':
+        q_kernel = compute_kernel(q, q)
+        p_kernel = compute_kernel(p, p)
+        qp_kernel = compute_kernel(q, p)
+        mmd = tf.reduce_mean(q_kernel) + tf.reduce_mean(p_kernel) - 2 * tf.reduce_mean(qp_kernel)
+        return tf.expand_dims(tf.expand_dims(mmd, 0), 1)
+    else: #if kernel == 'random': 
+        
+        W = tf.random_normal((K.int_shape(q)[-1], d))
+        phi_Wq = tf.sqrt(2/gamma) * tf.matmul(q,W) + tf.transpose(2*np.pi*tf.random_uniform((d,1)))
+        phi_Wq = tf.sqrt(2/d) * tf.cos(phi_Wq)
+        phi_Wp = tf.sqrt(2/gamma) * tf.matmul(p,W) + tf.transpose(2*np.pi*tf.random_uniform((d,1)))
+        phi_Wp = tf.sqrt(2/d) * tf.cos(phi_Wp)
+        
+        mmd = K.mean((phi_Wq - phi_Wp), axis = 0, keepdims = True)**2
+        return K.sum(mmd, axis = -1, keepdims = True) 
+
+def made_marginal_density(inputs, method = 'maf'):
+    # target - true ... output layer for MADE
+    # ONLY WORKS FROM ASSUMED indpt std Gaussian NOISE MODEL
+    gaussian_vals, logvars = inputs
+    #target, [log_vars, rand_inputs] = inputs
+    if method in ['maf', 'gaussian']:
+        normal_pdf = ((2*np.pi)**-.5)*K.exp(-.5*gaussian_vals**2)
+        sum_jacobian = logvars
+        #add([K.sum(-.5*log_var, axis = -1) for log_var in list_of_log_vars])
+        log_density = normal_pdf + sum_jacobian
+        # evaluate density of rand_inputs
+        # sum jacobian
+        # each target value against some random input?
+    print("LOG DENSITY ", K.int_shape(log_density))
+    return log_density
+    # evaluate MADE at inverse of transform of z?
+
 
 def echo_var(inputs, d_max = 50):
     print("INPUTS: ", inputs)
@@ -84,44 +142,6 @@ def echo_loss(inputs, d_max = 50):
 #     cap = tf.reduce_sum(capacities, name="capacity")
 #     return tf.expand_dims(tf.expand_dims(cap,0), 1)
 
-def dim_sum(true, tensor):
-    #print('DIMSUM TRUE ', _true)
-    #print('DIMSUM Tensor ', tensor)
-    return K.sum(tensor, axis = -1)
-
-def dim_sum_one(tensor):
-    #print('DIMSUM TRUE ', _true)
-    #print('DIMSUM Tensor ', tensor)
-    return K.sum(tensor, axis = -1)
-
-def identity(true, tensor):
-    return tensor
-
-def loss_val(tensor):
-    return K.mean(K.sum(tensor, axis = -1), axis = 0)
-
-def sum_all(tensor):
-    return K.sum(tensor)
-
-
-def logsumexp(x, axis = -1, keepdims = False):
-    #return tf.reduce_logsumexp(mx, axis = axis)
-    m = K.max(x, axis=axis, keepdims = True) # keep dims for broadcasting
-    return m + K.log(K.sum(K.exp(x - m), axis=axis, keepdims=keepdims)) + K.epsilon()
-
-    # cmax = K.max(x, axis=axis)
-    # cmax2 = K.expand_dims(cmax, 1)
-    # mx2 = x - cmax2
-    # return cmax + K.log(K.sum(K.exp(mx2), axis= axis, keepdims = keepdims))
-
-def logmeanexp(x, axis = -1, keepdims = False):
-    m = K.max(x, axis=axis, keepdims= True)
-    return m + K.log(K.mean(K.exp(x - m), axis=axis, keepdims=keepdims)) + K.epsilon()
-
-    # cmax = K.max(x, axis=axis)
-    # cmax2 = K.expand_dims(cmax, 1)
-    # mx2 = x - cmax2
-    # return cmax + K.log(K.mean(K.exp(mx2), axis= axis, keepdims = keepdims))
 
 def gaussian_logpdf(eval_pt, mu = 0.0, logvar = 0.0):
     if eval_pt is None:
@@ -487,7 +507,7 @@ def gaussian_entropy(inputs):#logvar = 0.0):
         logvar = inputs
     else:
         [mu, logvar] = inputs
-    return .5*(np.log(2*np.pi)+1+K.sum(logvar, axis = -1))
+    return .5*(np.log(2*np.pi)+1+K.sum(logvar, axis = -1, keepdims = True))
 
 def lognormal_entropy(inputs):#mean, logvar):
     [mu, logvar] = inputs

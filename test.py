@@ -16,6 +16,9 @@ parser.add_argument('--noise', type=str)
 parser.add_argument('--constraint', type=float)
 parser.add_argument('--filename', type=str)
 parser.add_argument('--beta', type=float)
+parser.add_argument('--verbose', type=bool, default = 1)
+parser.add_argument('--per_label')
+parser.add_argument('--dataset', type=str, default = 'binary_mnist')
 args, _ = parser.parse_known_args()
 
 print("ECHO INIT ", args.echo_init)
@@ -26,22 +29,17 @@ if ".json" in args.config:
 	config = args.config
 else:
 	#config = ast.literal_eval(args.config)
-	print(args.config)
-	config = json.loads(args.config.replace("'", '"')) 
+	config = json.loads(args.config.replace("'", '"'))
 
+if args.dataset == 'fmnist' or args.dataset =='f':
+        d = dataset.fMNIST()
+if args.dataset == 'binary_mnist':
+        d = dataset.MNIST(binary= True)
+if args.dataset == 'mnist':
+        d = dataset.MNIST()
 
-print("replaced config")
-print(config)
-
-d = dataset.fMNIST()
-#d = dataset.MNIST(binary= True)
-#i = Input(shape = (d.x_train.shape[-1],))
-#l = Dense(10)(i)
-#print(l, callable(l))
-#l = Dense(10)
-#l = l(i)
-#print(l, callable(l))
-
+if args.per_label is not None:
+        d.shrink_supervised(args.per_label)
 
 init_str = str(args.echo_init if args.echo_init is not None else "")
 noise_str = str(args.noise if args.noise is not None else "")
@@ -53,7 +51,7 @@ else:
 	fn = args.filename
 
 
-m = model.NoiseModel(d, config = config, filename = fn)
+m = model.NoiseModel(d, config = config, filename = fn, verbose = args.verbose)
 
 
 if args.echo_init is not None: 

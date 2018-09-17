@@ -26,6 +26,7 @@ class Layer(object):
             'add_loss': True,
             'activation': None, # custom activation (can be an import: module.___)
             #'output': -1, # output is data layer (e.g. hierarchical corex may specify index in decoder as other layer)
+            'density_estimator': None,
             'layer_kwargs': {}
                 # kw args for Keras or other layer
         }
@@ -103,6 +104,37 @@ class Layer(object):
                     stats_list.append([z_mean, z_logvar])
                 z_act = Lambda(layers.vae_sample, name = 'z_act_'+name_suffix)
                 act_list.append(z_act)
+
+            elif self.type in ['autoregressive_flow', 'af', 'ar_flow', 'arf']:
+                #if samp == 0:
+                flow = AR_flow(name = 'ar_flow'+name_suffix)
+                density = Lambda(flow.get_density, name = 'density'+name_suffix)
+                act_list.append(flow)
+                addl_list.append(density)
+
+            elif self.type in ['maf', 'masked_arf']:#, 'gaussian_af', 'gaussian_arf', 'gaussian_maf']:
+                # THIS DOESNT MAKE SENSE ATM, MASKED AF FLOW FOR MARGINAL MOVED TO LOSSES
+                #if samp == 0:
+
+                #if self.layer_kwargs.get('gaussian_inputs', False)
+                #else:
+
+                made_network = layers.MADE_network(steps = self.layer_kwargs.get('steps', 1), 
+                                                layers = self.layer_kwargs.get('layers', 1),
+                                                mean_only = self.layer_kwargs.get('mean_only', 1),
+                                                name = 'made_network'+name_suffix)
+                made_jacobian = Lambda(made_network.get_log_det_jac, name = 'made_jac'+name_suffix)
+                # prob z, to be fed to loss (treat this as recon?)
+                act_list.append(made_network)
+                addl_list.append(made_jacobian)
+
+                # in loss argument, define MADE network and gaussian/data input
+                # Input(Gauss noise) => MADE_network => recon on z network... loss = recon + jacobian = Eq log p
+
+                #flow = AR_flow(name = 'ar_flow'+name_suffix)
+                #density = Lambda(flow.get_density, name = 'density'+name_suffix)
+                #act_list.append(flow)
+                #addl_list.append(density)
 
             else:
                 # import layer module by string (can be specified either in activation or layer_kwargs)

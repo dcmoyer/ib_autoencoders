@@ -5,7 +5,6 @@ matplotlib.use('Agg')
 import sys
 #sys.path.insert(0, '../three-letter-mnist/')
 #import emnist_words
-import utils
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm

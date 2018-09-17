@@ -6,44 +6,45 @@
 	"lr": 0.001,
 	"encoder_dims": [200, 200, 50],
 	"decoder_dims": null,
-	"layers": 
-		[{
-			"layer": -1, 
-			"encoder": true,
-			"type": "echo",	
-			"k": 1,
-			"layer_kwargs":{
-				"d_max": 50,
-				"init": -5,
-				"noise": "additive",
-				"trainable": true
-			}
-		}], 
 	"initializer": "glorot_uniform",
 	"activation": {  
 		"encoder": "softplus",
 		"decoder": "softplus"
 		},
+	"layers": [
+		{
+			"type": "bir",
+			"layer": -1,
+			"encoder": true,
+			"k":1,
+			"layer_kwargs":{
+				"mi": 10.0
+			}
+		}
+	],
 	"output_activation" : "sigmoid",
-	"recon": "bce", 
+	"recon": "bce",
 	"losses":
-		[
-			{
-			"type": "echo",
+		[{
+			"type": "bir",
 			"layer": -1, 
 			"encoder": true,
 			"weight": 1
+		},
+		{
+			"type": "mmd",
+			"layer": -1, 
+			"encoder": true,
+			"weight": 1000
+		},
+		{			
+			"type": "mse",
+			"layer": -1, 
+			"encoder": false,
+			"weight": 0.0
 			}
 		],
-	"constraints":[
-		{
-			"loss": 0,
-			"value": 10.0,
-			"relation:": "equal"
-		}
-	],
 	"beta": 1.0,
-	"mismatch": null,
 	"anneal_schedule": null, 
-	"anneal_functions": null
+	"anneal_function": null
 }

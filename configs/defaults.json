@@ -1,0 +1,44 @@
+{
+	"epochs": 100,
+	"batch": 100,
+	"optimizer": "Adam",
+	"optimizer_params": {}, /* kwargs for Keras optimizer w/string name above matching function */
+	"initializer": "glorot_uniform",
+
+	"latent_dims": [[200, 200, 50], [100, 100, 50]],
+	"decoder_dims": null,
+	
+	"noise_layer": "vae", /* added to final encoding layer : 'vae'/'add', 'ido'/'mul', 'corex', 'iwae' */
+	/* 'vae', 'ido', 'corex' will add noise loss by default, 'add'/'mul' will not */
+	"noise_layers":  /* used for specifying additional parameters (e.g. k samples for iwae), additional noise layers */
+		{
+		"vae": {
+			"layer": -1, /* 0, 1, 2 indexing for encoder layers.  (d0, d1, d2 for decoder? not currently supported)  */
+			"k": 1,
+			"add_loss": true
+			},
+		}, 
+	"activation": {  
+		"encoder": "softplus",
+		"decoder": "softplus"
+		/* can also take single string if all activations the same */
+		}, 
+	"output_activation" : "sigmoid",
+	
+	"beta": ,
+	"schedule": ,
+
+	/* pass function & args? */
+	"losses": /* regularizations for the various layers */
+		{
+		"mi_joint": {
+			"layer1": "vae"
+		}  ,
+
+		"tc"
+		}
+	"loss_layers": [],
+	"loss_weights": ["beta", "1-beta", "1"], /* either float or name of a custom function in loss_weights.py file */
+		/* ['tc', ]
+
+}

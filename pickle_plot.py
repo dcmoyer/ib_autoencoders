@@ -13,7 +13,7 @@ folders = [
     'ido_beta',
     'ido_constraint',
     'echo_add_beta',
-    'echo_add_constraint',
+    'echo_add_constraint', 
     'echo_add_beta_dim2',
     'echo_mult_beta',
     'echo_mult_constraint',
@@ -23,14 +23,24 @@ folders = [str('results/' + f) for f in folders]
 #for folder in folders:
 #    analysis.rd_curve(folder, beta = 'beta' in folder)
 
-f = 'results/echo_add_alemi_binary_mnist'#, 'results/echo_add_beta']
-analysis.rd_curve(f, beta = True, name = 'echo_alemi')
+f = ['results/infovae_beta_binary_mnist']#, 'results/alemi_test_vae_binary_mnist']
+analysis.rd_curve(f, beta = True, name = 'echo_vae_mnist')
 
-fn = 'alemi_echo_add_1.15.pickle'
-with open(os.path.join(os.getcwd(), f, fn), "rb") as pkl_data:
+f = ['results/echo_add_alemi_.001_binary_mnist']#, 'results/alemi_test_vae_binary_mnist']
+analysis.rd_curve(f, beta = True, name = 'echo_alemi_fmnist')
+
+f = ['results/alemi_vae_beta_fmnist']#, 'results/alemi_test_vae_binary_mnist']
+analysis.rd_curve(f, beta = True, name = 'vae_alemi_fmnist')
+
+fn = 'echo_add_alemi_.001_0.8.pickle'
+with open(os.path.join(os.getcwd(), f[0], fn), "rb") as pkl_data:
     results = pickle.load(pkl_data)
-analysis.plot_loss(results, keys=['bce_recon_loss', 'mi_echo_reg_loss'], prefix = f+'/alemi')
+analysis.plot_loss(results, keys=['bce_recon_loss', 'mi_echo_reg_loss'], prefix = f[0]+'/')
 
+# fn = 'alemi_echoAddBeta_0.5.pickle'
+# with open(os.path.join(os.getcwd(), f[1], fn), "rb") as pkl_data:
+#     results = pickle.load(pkl_data)
+# analysis.plot_loss(results, keys=['bce_recon_loss', 'vae_reg_loss'], prefix = f[1]+'/')
 
 # f = ['results/vae_beta', 'results/echo_add_beta']
 # analysis.rd_curve(f, beta = True, name = 'echo_vs_vae_beta')
