@@ -23,7 +23,7 @@ import pickle
 # if isinstance( data, Dataset):
 #   data = data.data
 #def rd_curve(hist, test = None, legend = None, prefix = ''):
-def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'bce'):
+def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'bce', threshold = .001):
     recons = defaultdict(lambda: defaultdict(list))
     regs = defaultdict(lambda: defaultdict(list))
     lagrs = defaultdict(lambda: defaultdict(list))
@@ -31,7 +31,7 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
     test_regs = defaultdict(lambda: defaultdict(list))
     test_lagrs = defaultdict(lambda: defaultdict(list))
     param_inds = defaultdict(list)
-    offset = 2
+    offset = 3
     
     models = defaultdict(lambda: defaultdict(list))
     recon_over_time = defaultdict(lambda: defaultdict(list))
@@ -55,6 +55,9 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
                     add = -1 if len(param.split("additive")[0]) >= len(param.split("additive")[-1]) and len(param.split("additive")[-1])>1 else 0 #
                     param = fn.split(".pickle")[0].split("additive")[add].split("multiplicative")[mult].split("_")[-1]
                     
+                    if float(param) <= threshold and float(param) > 10**-6:
+                        continue
+
                     param_inds[folder].append(param)
                     
 
@@ -65,6 +68,27 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
                             print("Could not open ", fn)
                             continue
                         #print(list(results.keys()))
+                        if len([k for k in results.keys() if 'test' not in k and ('gaussian' in k or 'made' in k)]) >= 2:
+                            for kk in [k for k in results.keys() if ('gaussian' in k or 'made' in k)]:
+                                if 'test' in kk:
+                                    try:
+                                        results['test_mi_est_reg'] += -results[kk] if 'gaussian' in kk else results[kk]
+                                    except:
+                                        results['test_mi_est_reg'] = -results[kk] if 'gaussian' in kk else results[kk]
+                                else:
+                                    if 'gaussian' in kk: 
+                                        if 'mi_est_reg' not in results:
+                                            results['mi_est_reg'] = [0]*len(results[kk])
+                                        if len(results['mi_est_reg']) != len(results[kk]):
+                                            print()
+                                        results['mi_est_reg'] = [results['mi_est_reg'][i] - results[kk][i] for i in range(len(results[kk]))]
+                                    else:
+                                        if 'mi_est_reg' not in results:
+                                            results['mi_est_reg'] = [0]*len(results[kk])
+                                        results['mi_est_reg'] = [results['mi_est_reg'][i] + results[kk][i] for i in range(len(results[kk]))]
+                                    #except:  
+                                    #   results['mi_est_reg'] += [-1*a for a in results[kk]] if 'gaussian' in kk else results[kk]
+                                
                         for loss in results.keys():
                             k = loss.split("/")[0]
                             #print(loss)
@@ -89,10 +113,14 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
                                     #test_lagrs[loss].append(results[str('test_'+loss)])
         #write files per folder 
         csv_str=''
-        print("Params ", param_inds[folder])
+        print("Params ", param_inds[folder], " len ", len(param_inds[folder]))
  
         # rows = increasing param value
         for i in sorted(range(len(param_inds[folder])), key=lambda k: float(param_inds[folder][k])): #range(len(param_inds[folder])):
+            if ('echo' in folder and i >= len(regs[folder]['mi_echo_reg_loss'])) or ('made' in folder and i >= len(regs[folder]['made_reg_loss'])):
+                continue
+            if ('vae_reg_loss' in folder and i >= len(regs[folder]['vae_reg_loss'])):
+                continue
             # headers
             if csv_str=='':
                 #print("len params ", len(param_inds[folder]))
@@ -103,6 +131,10 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
                     #csv_str += "{} \t \t".format(k.split('_')[:-2]) #k.split('loss')[:-2]
                 for k in recons[folder].keys():
                     csv_str += "{} \t \t".format(k.split('_')[0]) 
+                    
+                for k in regs[folder].keys():
+                    csv_str += "test_{} \t \t".format(k.split('_')[0])
+                for k in recons[folder].keys():
                     csv_str += "test_{} \t \t".format(k.split('_')[0])
                     #csv_str += "{} \t \t".format(k.split('_')[:-2])
                     #csv_str += "test_{} \t \t".format(k.split('_')[:-2])
@@ -114,10 +146,15 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
             csv_str += '{} \t \t'.format(param_inds[folder][i])
             # columns
             for k in regs[folder].keys():
+                print(k, ' : ', len(regs[folder][k]), ' i ', i)
                 csv_str += "{} \t \t".format(round(regs[folder][k][i],2))
             for k in recons[folder].keys():
                 csv_str += "{} \t \t".format(round(recons[folder][k][i],2))
+            for k in regs[folder].keys():
+                csv_str += "{} \t \t".format(round(test_regs[folder][k][i],2))    
+            for k in recons[folder].keys():
                 csv_str += "{} \t \t".format(round(test_recons[folder][k][i]),2)
+
             for k in lagrs[folder].keys():
                 csv_str += "{} \t \t".format(round(lagrs[folder][k][i]),3)
 
@@ -129,55 +166,64 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
             #csv.write(param_inds[folder][i], regs[folder][k][i] for k in regs[folder].keys(), recons[folder][k][i] for k in recons[folder].keys())
 
         for reg in regs[folder].keys():
-            for recon in recons[folder].keys():
-                if 'beta' in fn or beta:
-                    val, idx = min((val, idx) for (idx, val) in enumerate(param_inds[folder]))
-                else: # constrainted optimization, maximal regularizer
-                    val, idx = max((val, idx) for (idx, val) in enumerate(param_inds[folder]))
+            try:
+                for recon in recons[folder].keys():
+                    print("reg ", reg, " recon ", recon)
+                    if 'beta' in fn or beta:
+                        val, idx = min((val, idx) for (idx, val) in enumerate(param_inds[folder]))
+                    else: # constrainted optimization, maximal regularizer
+                        val, idx = max((val, idx) for (idx, val) in enumerate(param_inds[folder]))
 
-                #val, idx = min((val, idx) for (idx, val) in enumerate(recons[folder][recon]))
-                #print('AE idx ', recon, ' : ', idx, ' , ', val, ' : test recon len ', len(test_recons[folder][recon]))
-                #print('reg: ', reg, ' other keys: ', list(regs[folder].keys()))
-                #print('regs len ', len(regs[folder][reg]), ' recons len ', len(recons[folder][recon]))
-                
-                plt.figure(figsize=(15,15))
-                plt.title(str("Train/Test RD "+ folder.split('/')[-1]))
-                plt.xlabel(reg)
-                plt.ylabel(recon)
-                # scatter except for minimum recon => dotted line
+                    #val, idx = min((val, idx) for (idx, val) in enumerate(recons[folder][recon]))
+                    #print('AE idx ', recon, ' : ', idx, ' , ', val, ' : test recon len ', len(test_recons[folder][recon]))
+                    #print('reg: ', reg, ' other keys: ', list(regs[folder].keys()))
+                    #print('regs len ', len(regs[folder][reg]), ' recons len ', len(recons[folder][recon]))
+                    
+                    plt.figure(figsize=(15,15))
+                    plt.title(str("Train/Test RD "+ folder.split('/')[-1]))
+                    plt.xlabel(reg)
+                    plt.ylabel(recon)
+                    # scatter except for minimum recon => dotted line
 
-                try:
-                    plt.axhline(y= recons[folder][recon][idx], color = 'b', linestyle='-', label = str('train_AE (param '+ str(round(float(val),0))+')'))
-                    plt.axhline(y= test_recons[folder][recon][idx], color = 'r', linestyle='-', label= str('test_AE (param '+ str(round(float(val),0))+')'))
-                except:
-                    plt.axhline(y= recons[folder][recon][idx], color = 'b', linestyle='-', label = 'train_AE')
-                    plt.axhline(y= test_recons[folder][recon][idx], color = 'r', linestyle='-', label= 'test_AE')
-              
-                plt.scatter([regs[folder][reg][i] for i in range(len(regs[folder][reg])) if i != idx], 
-                    [recons[folder][recon][i] for i in range(len(recons[folder][recon])) if i != idx])
-                plt.scatter([test_regs[folder][reg][i] for i in range(len(test_regs[folder][reg])) if i != idx], 
-                    [test_recons[folder][recon][i] for i in range(len(test_recons[folder][recon])) if i != idx])
+                    try:
+                        plt.axhline(y= recons[folder][recon][idx], color = 'b', linestyle='-', label = str('train_AE (param '+ str(round(float(val),0))+')'))
+                        plt.axhline(y= test_recons[folder][recon][idx], color = 'r', linestyle='-', label= str('test_AE (param '+ str(round(float(val),0))+')'))
+                    except:
+                        plt.axhline(y= recons[folder][recon][idx], color = 'b', linestyle='-', label = 'train_AE')
+                        plt.axhline(y= test_recons[folder][recon][idx], color = 'r', linestyle='-', label= 'test_AE')
+                  
+                    plt.scatter([regs[folder][reg][i] for i in range(len(regs[folder][reg])) if i != idx], 
+                        [recons[folder][recon][i] for i in range(len(recons[folder][recon])) if i != idx])
+                    plt.scatter([test_regs[folder][reg][i] for i in range(len(test_regs[folder][reg])) if i != idx], 
+                        [test_recons[folder][recon][i] for i in range(len(test_recons[folder][recon])) if i != idx])
 
-                plt.legend()
-                for i in sorted(range(len(param_inds[folder])), key=lambda k: float(param_inds[folder][k])):
-                    if i % 2 == 0:
-                        plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]-offset, recons[folder][recon][i]-offset), size = 'large')
-                
+                    plt.legend()
+                    for i in sorted(range(len(param_inds[folder])), key=lambda k: float(param_inds[folder][k])):
+                        if i % 2 == 0:
+                            plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]-offset, recons[folder][recon][i]-offset), size = 'large')
+                    
 
-                plt.savefig(os.path.join(folder, str(*recon.split('loss')[:-1])+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
-                plt.close()
+                    plt.savefig(os.path.join(folder, str(*recon.split('loss')[:-1])+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
+                    plt.close()
 
-            for lagr in lagrs[folder].keys():
-                plt.figure()
-                plt.scatter(regs[folder][reg], lagrs[folder][lagr])
-                #plt.scatter(test_regs[folder][reg], lagrs[])
-                for i in range(len(regs[folder][reg])):
-                    plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]+offset, lagrs[folder][lagr][i]+offset))
-                plt.savefig(os.path.join(folder, lagr+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
-                plt.close()
+                for lagr in lagrs[folder].keys():
+                    plt.figure()
+                    plt.scatter(regs[folder][reg], lagrs[folder][lagr])
+                    #plt.scatter(test_regs[folder][reg], lagrs[])
+                    for i in range(len(regs[folder][reg])):
+                        plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]+offset, lagrs[folder][lagr][i]+offset))
+                    plt.savefig(os.path.join(folder, lagr+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
+                    plt.close()
+            except Exception as e:
+                print("FAILED: reg ", reg, " recon ", recon)
+                print(e)
         #legend = param values
     for folder in folders:
         for reg in regs[folder].keys():
+            print('reg: ', reg, end = '')
+            if not ('mi_' in reg or 'vae' in reg or 'ido' in reg):
+                continue
+            print("plotting ", reg)
             for recon in recons[folder].keys():
                 if recon_loss in recon and 'test' not in recon:
                     if folder == folders[0]:

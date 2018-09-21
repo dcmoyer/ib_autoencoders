@@ -81,7 +81,7 @@
 				"layer_kwargs":{
 					"steps": 4,
 					"mean_only": false,
-					"layers": [640,640,640,50]
+					"layers": [640,640,640,64]
 				}
 			}
 			},

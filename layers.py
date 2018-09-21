@@ -11,7 +11,9 @@ import tensorflow as tf
 from random import shuffle, randint
 import importlib 
 from collections import defaultdict
+import tf.contrib.distributions as tfd 
 
+tfb = tfd.bijectors
 
 def vae_sample(inputs, std = 1.0):
   # standard reparametrization trick: N(0,1) => N(mu(x), sigma(x))
@@ -43,6 +45,10 @@ def inverse_vae_sample(inputs, std = 1.0):
  
   z_score = (target-z_mean)*K.exp(z_noise)**(-.5)
   return z_score #z_mean + K.exp(z_noise / 2) * z_score
+
+def inverse_flow(inputs):
+  pass
+
 
 def constant_layer(inputs, variance = 1, batch = 200):
 # needed to pass BIR variance to loss function
@@ -136,6 +142,60 @@ def my_predict(model, data, layer_name, multiple = True):
                         [model.get_layer(layer_name).get_output_at(0)])
         return func([data])[0]
 
+
+def tf_masked_flow(inputs, steps, layers = None, inverse = False, mean_only = True, activation = 'relu' name = None):
+  z_mean = inputs
+
+  dim = K.int_shape(z_mean)[-1]
+  if steps and layers is None:
+    layers = [dim]*steps
+
+  if name is None:
+    name = 'maf'
+ 
+  # if inverse:
+  #   iaf = tfd.TransformedDistribution(
+  #       distribution=tfd.Normal(loc=z_mean, scale=z_std),
+  #       bijector=tfb.Invert(tfb.MaskedAutoregressiveFlow(
+  #           shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
+  #               hidden_layers= layers, shift_only= mean_only))),  name = name,
+  #       event_shape=[dim])
+  # else:
+  maf = tfd.TransformedDistribution(
+    distribution=tfd.Normal(loc=0.0, scale=1.0),
+    bijector=tfb.MaskedAutoregressiveFlow(
+        shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
+            hidden_layers=layers, shift_only=mean_only), activation = activation), name = name,
+    event_shape=[dim])
+    #maf.logprob()
+    #maf.sample()
+
+  return maf.logprob(z_mean)
+
+
+
+def tf_inverse_flow(inputs, steps, layers = None, mean_only = True, activation = 'relu' name = None):
+  z_mean, z_logvar = inputs
+
+  dim = K.int_shape(z_mean)[-1]
+  if steps and layers is None:
+    layers = [dim]*steps
+
+  if name is None:
+    name = 'iaf'
+
+  iaf = tfd.TransformedDistribution(
+      distribution=tfd.Normal(loc=z_mean, scale=tf.exp(.5*z_logvar)),
+      bijector=tfb.Invert(tfb.MaskedAutoregressiveFlow(
+          shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
+              hidden_layers= layers, shift_only= mean_only))),  name = name,
+      event_shape=[dim])
+
+  return iaf
+
+
+
+
 class Echo(Layer):
   def __init__(self, init = -5., batch = 200, d_max = 50, trainable = False, noise = 'additive', multiplicative = False, periodic = False, **kwargs):
       self.init = init
@@ -151,7 +211,7 @@ class Echo(Layer):
 
   def build(self, input_shape):
       #self.batch = input_shape[0]
-      self.dim = input_shape[1]
+      self.dim = input_shape[-1]
       #print("BATCH SIZE ECHO LAYER ", self.batch)
       if self.trainable:
         self.cap_param = self.add_weight(name='capacity', 
@@ -233,103 +293,124 @@ def make_ar_flow(x, transform_dims = [640, 640, 640, 640], activation = 'relu', 
     if mask == 'made':
       pass
 
-# class Inverse_AR_Flow(Layer):
-#   def __init__(self, layers = 0, transform_dims = [], activation = 'relu', mask = 'made', **kwargs):
-#     self.layers = layers
-#     self.transform_dims = transform_dims
-#     if layers == 0 and isempty(transform_dims):
-#       raise ValueError("Please enter # of dims for inverse autoregressive flow")
-#     try:
-#       mod = importlib.import_module('keras.activations')
-#       self.activation = getattr(mod, self.activation)
-#     except:
-#       self.activation = activation
-
-#     self.mask = mask
-#     self.w = []
-#     self.u = []
-#     self.b = []
-#     super(Inverse_AR_Flow, self).__init__(**kwargs)
-
-#   def build(self, input_shape):
-#     self.dim = input_shape[-1]
-#     self.w.append(self.add_weight(name='w_'+i, 
-#                           shape = (self.dim,),
-#                           initializer= 'glorot_uniform',
-#                           trainable= True))
-
-
-#     super(Inverse_AR_Flow, self).build(input_shape)
-
-class AR_Flow(Layer):
-  def __init__(self, layers = 0, dims = [], activation = 'relu', mask = 'made', **kwargs):
-    self.layers = layers
-    self.transform_dims = dims
-    if layers == 0 and isempty(dims):
-      raise ValueError("Please enter # of dims for autoregressive flow")
+class IAF(Layer):
+  def __init__(self, layers, steps = None, activation = 'relu', mean_only = True, **kwargs):
     
+    self.layers = layers
+    self.steps = steps if steps is not None else 1
+    self.mean_only = mean_only
+
+    try:
+      mod = importlib.import_module('keras.activations')
+      self.activation = getattr(mod, self.activation)
+    except:
+      self.activation = activation
+    
+    super(Inverse_AR_Flow, self).__init__(**kwargs)
+
+  def build(self, input_shape):
+    self.dim = input_shape[-1]
+    
+    # HOW TO INCORPORATE (loc=z_mean, scale=z_std)?
+    iaf = tfd.TransformedDistribution(
+        distribution=tfd.Normal(loc=z_mean, scale=z_std),
+        bijector=tfb.Invert(tfb.MaskedAutoregressiveFlow(
+            shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
+                hidden_layers=self.layers, shift_only=self.mean_only))),  name = self.name,
+        event_shape=[self.dim])
+
+
+      self.built = True
+    
+    def call(self, x):
+      self.made_tensors = defaultdict(lambda: defaultdict(list))
+      # e.g. x = target z 
+      for i in range(self.steps):
+        m, s = self.made_layers[i]['stat']
+        self.made_tensors[i]['stat'] = [m(x), s(x)]
+        self.made_tensors[i]['act'] = self.made_layers[i]['act']([x, *self.made_tensors[i]['stat']])
+        x = self.made_tensors[i]['act'] 
+      return x
+
+    def compute_output_shape(self, input_shape):
+      # CHECK THIS, PROBABLY NOT GENERAL
+      return input_shape
+
+    def get_log_det_jac(self, x):
+      return K.sum(tf.add_n([-.5*self.made_tensors[i]['stat'][-1] for i in range(self.steps)]), axis = -1, keepdims= True)
+      #K.sum(-.5*log_var, axis = -1)
+      #K.sum([self.made_tensors[i]['stat'][-1] for i in range(self.steps)])
+    def get_alpha_i(self, x):
+      return self.get_log_det_jac(x)
+
+
+class Inverse_AR_Flow(Layer):
+  def __init__(self, layers = 0, transform_dims = [], activation = 'relu', mask = 'made', **kwargs):
+    self.layers = layers
+    self.transform_dims = transform_dims
+    if layers == 0 and isempty(transform_dims):
+      raise ValueError("Please enter # of dims for inverse autoregressive flow")
     try:
       mod = importlib.import_module('keras.activations')
       self.activation = getattr(mod, self.activation)
     except:
       self.activation = activation
 
-
     self.mask = mask
     self.w = []
     self.u = []
     self.b = []
-    super(AR_Flow, self).__init__(**kwargs)
-    
-  def build(self, input_shape):
+    super(Inverse_AR_Flow, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+      # only variances figure into loss
+      self.dim = input_shape[-1]
+      if not isinstance(self.layers[0], list):
+        self.layers = [self.layers.append(self.dim) for i in range(self.steps)]
+
+      self.made_layers = defaultdict(lambda: defaultdict(list))
+      for i in range(len(self.layers)):
+
+        #if i == len(self.layers)-1:
+        #  self.made_layers[i]['act'].append(
+        #    Lambda(vae_sample))
+        print("MADE network layer SIZE: ", self.layers[i])
+        mean_made = MADE(out_units = self.dim, hidden_dims = self.layers[i], 
+                random_input_order = True, activation = 'relu' if self.activation is None else self.activation, out_activation = 'linear', 
+                name = 'made_mean_'+str(i))
+        self.made_layers[i]['stat'].append(mean_made)
+        made_std = MADE(out_units = self.dim, hidden_dims = self.layers[i], 
+          random_input_order = True, activation = 'relu' if self.activation is None else self.activation, out_activation = 'linear',
+          name = 'made_std_'+str(i))
+            #stat_list.append([made_mean, made_std])
   
-    self.dim = input_shape[-1]
-    dims = layers if layers != 0 else len(self.transform_dims)
+        self.made_layers[i]['stat'].append(made_std)
+        # NEEDS previous activation AS INPUT 
+        maf_act = Lambda(inverse_vae_sample, name = 'made_noise'+str(i))
+        self.made_layers[i]['act'] = maf_act
+        #self.made_layers[i]['act'].append(maf_act)
+      self.built = True
+    
+    def call(self, x):
+      self.made_tensors = defaultdict(lambda: defaultdict(list))
+      # e.g. x = target z 
+      for i in range(self.steps):
+        m, s = self.made_layers[i]['stat']
+        self.made_tensors[i]['stat'] = [m(x), s(x)]
+        self.made_tensors[i]['act'] = self.made_layers[i]['act']([x, *self.made_tensors[i]['stat']])
+        x = self.made_tensors[i]['act'] 
+      return x
 
+    def compute_output_shape(self, input_shape):
+      # CHECK THIS, PROBABLY NOT GENERAL
+      return input_shape
 
-    for i in range(len(dims)):
-      if layers == 0: 
-        self.dim = transform_dims[i]
-      
-      self.w.append(self.add_weight(name='w_'+i, 
-                            shape = (self.dim,),
-                            initializer= 'glorot_uniform',
-                            trainable= True))
-      #x = Dense(transform_dims[i], activation = activation, name = 'flow_'+prefix+i)(x)
-      
-      self.u.append(self.add_weight(name='u_'+i, 
-                            shape = (self.dim,),
-                            initializer= 'glorot_uniform',
-                            trainable= True))
-
-      self.b.append(self.add_weight(name='b_'+i, 
-                            shape = (1,),
-                            initializer= 'zero',
-                            trainable= True))
-
-      super(AR_Flow, self).build(input_shape)
-      #x = Lambda(flow_transform, arguments = {"flow_type": flow_type})(x)
-      
-  def call(self, x):
-    logdetjac = 0
-    x = K.random_normal(shape=z_mean._keras_shape[-1],
-                                  mean=0.,
-                                  stddev=1.0)
-    log_q0 = 2*np.pi**(-.5)*K.exp(.5*x**2)
-
-    for i in range(len(self.w)):
-      h = self.activation(x*self.w[i] + self.b[i])
-      psi = h*self.w[i]
-      logdetjac += K.log(1+K.transpose(self.u[i])*psi)
-      x = x + u*h
-    self.density = log_q0 - logdetjac
-    return x #log_q0 - logdetjac
-
-  def compute_output_shape(self, input_shape):
-      return input_shape  
-
-  def get_density(self, x):
-      return self.density
+    def get_log_det_jac(self, x):
+      return K.sum(tf.add_n([-.5*self.made_tensors[i]['stat'][-1] for i in range(self.steps)]), axis = -1, keepdims= True)
+      #K.sum(-.5*log_var, axis = -1)
+      #K.sum([self.made_tensors[i]['stat'][-1] for i in range(self.steps)])
+    def get_alpha_i(self, x):
+      return self.get_log_det_jac(x)
 
 
 class MADE_network(Layer):
@@ -576,7 +657,75 @@ class MADE(Layer):
     def compute_output_shape(self, input_shape):
         return (input_shape[0], self.out_units)
 
+class AR_Flow(Layer):
+  def __init__(self, layers = 0, dims = [], activation = 'relu', mask = 'made', **kwargs):
+    self.layers = layers
+    self.transform_dims = dims
+    if layers == 0 and isempty(dims):
+      raise ValueError("Please enter # of dims for autoregressive flow")
+    
+    try:
+      mod = importlib.import_module('keras.activations')
+      self.activation = getattr(mod, self.activation)
+    except:
+      self.activation = activation
 
+
+    self.mask = mask
+    self.w = []
+    self.u = []
+    self.b = []
+    super(AR_Flow, self).__init__(**kwargs)
+    
+  def build(self, input_shape):
+  
+    self.dim = input_shape[-1]
+    dims = layers if layers != 0 else len(self.transform_dims)
+
+
+    for i in range(len(dims)):
+      if layers == 0: 
+        self.dim = transform_dims[i]
+      
+      self.w.append(self.add_weight(name='w_'+i, 
+                            shape = (self.dim,),
+                            initializer= 'glorot_uniform',
+                            trainable= True))
+      #x = Dense(transform_dims[i], activation = activation, name = 'flow_'+prefix+i)(x)
+      
+      self.u.append(self.add_weight(name='u_'+i, 
+                            shape = (self.dim,),
+                            initializer= 'glorot_uniform',
+                            trainable= True))
+
+      self.b.append(self.add_weight(name='b_'+i, 
+                            shape = (1,),
+                            initializer= 'zero',
+                            trainable= True))
+
+      super(AR_Flow, self).build(input_shape)
+      #x = Lambda(flow_transform, arguments = {"flow_type": flow_type})(x)
+      
+  def call(self, x):
+    logdetjac = 0
+    x = K.random_normal(shape=z_mean._keras_shape[-1],
+                                  mean=0.,
+                                  stddev=1.0)
+    log_q0 = 2*np.pi**(-.5)*K.exp(.5*x**2)
+
+    for i in range(len(self.w)):
+      h = self.activation(x*self.w[i] + self.b[i])
+      psi = h*self.w[i]
+      logdetjac += K.log(1+K.transpose(self.u[i])*psi)
+      x = x + u*h
+    self.density = log_q0 - logdetjac
+    return x #log_q0 - logdetjac
+
+  def compute_output_shape(self, input_shape):
+      return input_shape  
+
+  def get_density(self, x):
+      return self.density
 
 
 

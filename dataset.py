@@ -158,7 +158,7 @@ class DSprites(Dataset):
         self.x_test = None
 
     def get_data(self):
-        dataset_zip = np.load('dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz', encoding = 'bytes') # ‘latin1’
+        dataset_zip = np.load('datasets/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz', encoding = 'bytes') # ‘latin1’
         imgs = dataset_zip['imgs']
         imgs = imgs.reshape((imgs.shape[0], -1))
         latent_ground_truth = dataset_zip['latents_values']
@@ -202,7 +202,12 @@ class CelebA(Dataset):
 
 class Cifar10(Dataset):
     def __init__(self):
-        raise NotImplementedError
+        self.dim1 = 32
+        self.dim2 = 32
+        self.dim3 = 3
+        self.dim = 3072
+        self.name = 'cifar10'
+        self.x_train, self.x_test, self.y_train, self.y_test = self.get_data()
     def get_data(self):
         (X_train, y_train), (X_test, y_test) = cifar10.load_data()
         return X_train, X_test, y_train, y_test

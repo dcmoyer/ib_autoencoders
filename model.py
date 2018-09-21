@@ -142,14 +142,16 @@ class NoiseModel(Model):
             try:
                 mod = importlib.import_module(str('lr_sched'))
                 # LR Callback will be True /// self.lr = function of epochs -> lr
-                self.lr = getattr(mod, self.lr)
                 self.lr_callback = isinstance(self.lr, str)
+                self.lr = getattr(mod, self.lr)
             except:
                 #self.lr = dflt.get('lr', .001)
                 print()
                 warnings.warn("Cannot find LR Schedule function.  Proceeding with default, constant learning rate.")    
                 print()
-
+        print()
+        print("**** LR CALLBACK *** ", self.lr_callback)
+        print()
         # self.lr = args.get('lr', dflt.get('latent_dims', .001)) 
         # try:
         #   self.lr = getattr(lr_sched, self.lr) if isinstance(self.lr, str) else self.lr # str or float
@@ -885,7 +887,7 @@ class NoiseModel(Model):
                     except:
                         layers_list[-1]['act'].append(a)
                         #current_call = layers_list[-1]['act']
-                    # ADDED FOR MADE
+                        # ADDED FOR MADE, which doesn't call on activation layer?
                 
 
                 for k in range(len(addl_k)):
@@ -959,7 +961,7 @@ class NoiseModel(Model):
             print("mismatch loss (outputs) ", self.mm.model.outputs)
             mismatch_loss = self.mm.loss_weights*l.loss_val(self.mm.model.outputs[-1])
             # CAREFUL WITH TRAINABLE VARIABLES (particularly since above trainer/lagr works off of all)
-            train_mm = tf.train.AdamOptimizer(self.lr).minimize(mismatch_loss, var_list = self.mm.model.trainable_weights)
+            train_mm = tf.train.AdamOptimizer(self.lr if not self.lr_callback else self.lr(0)).minimize(mismatch_loss, var_list = self.mm.model.trainable_weights)
             
             mismatch_init = 1.0
             sign = 1
@@ -1001,7 +1003,9 @@ class NoiseModel(Model):
         print("other vars ", other_vars)
         print("LAGR VARS ", lagr_vars)
 
-        trainer = tf.train.AdamOptimizer(self.lr).minimize(total_loss, var_list=other_vars)
+        
+        learning_rate = tf.placeholder(tf.float32)
+        trainer = tf.train.AdamOptimizer(learning_rate).minimize(total_loss, var_list=other_vars)
         lagrangian_trainer = tf.train.GradientDescentOptimizer(self.lr_lagr).minimize(-lagrangian_loss, var_list=lagr_vars)
         
         # DOESN'T WORK WITH > 1 CONSTRAINT
@@ -1031,19 +1035,19 @@ class NoiseModel(Model):
                 
                 if self.anneal_functions:
                     self.sess.run(update_lw)
-                   
+
 
                 for offset in range(0, (int(n_samples / self.batch) * self.batch), self.batch):  # inner
                     
                     batch_data = x_train[perm[offset:(offset + self.batch)]]
                     if self.mismatch:
                         _, mm_loss, _, _, tl= self.sess.run([train_mm, mismatch_loss, trainer, lagrangian_trainer, total_loss],
-                                           feed_dict={self.input_tensor: batch_data})
+                                           feed_dict={self.input_tensor: batch_data, learning_rate: self.lr if not self.lr_callback else self.lr(i)})
                         epoch_avg['mismatch_recon'].append(np.mean(mm_loss))
                         epoch_avg['total_loss'].append(np.mean(tl))
                     else:
                         result = self.sess.run([trainer, lagrangian_trainer, total_loss],
-                                           feed_dict={self.input_tensor: batch_data})
+                                           feed_dict={self.input_tensor: batch_data, learning_rate: self.lr if not self.lr_callback else self.lr(i)})
                         epoch_avg['total_loss'].append(np.mean(result[-1]))
                     self.sess.run(lagr_clip)
                     #for j in range(len(lagr_vars)):

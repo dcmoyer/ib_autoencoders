@@ -74,7 +74,7 @@ class Loss(object):
 
     def _type_to_function(self):
         #name_suffix = '_'+str(self.layer) if self.layer != -1 else ('_z' if self.encoder else '')
-        name_suffix = '_'+('recon' if self.type in RECON_LOSSES else 'reg')+('_'+str(self.layer) if self.layer != -1 else '')
+        name_suffix = '_'+('recon' if self.type in RECON_LOSSES else ('reg' if self.weight != 0 else ''))+('_'+str(self.layer) if self.layer != -1 else '')
         print("SELF.TYPE ", self.type, type(self.type))
         self.from_addl = []
         # *** RECON *** 
@@ -173,6 +173,14 @@ class Loss(object):
         elif self.type == "echo_var":# in self.type:
             self.from_layer = ['addl']
             return Lambda(l.echo_var, arguments = self.loss_kwargs, name = 'echo_var'+name_suffix)
+
+        elif self.type == "echo_min":# in self.type:
+            self.from_layer = ['addl']
+            return Lambda(l.echo_minmax, arguments = {"_min": True}, name = 'echo_min'+name_suffix)
+
+        elif self.type == "echo_max":# in self.type:
+            self.from_layer = ['addl']
+            return Lambda(l.echo_minmax, arguments = {"_min": False}, name = 'echo_max'+name_suffix)
 
         elif self.type == 'bir':
             self.from_layer = ['stat']

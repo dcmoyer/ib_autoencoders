@@ -112,29 +112,36 @@ class Layer(object):
                 act_list.append(flow)
                 addl_list.append(density)
 
+            elif self.type in ['iaf', 'inverse_flow']:
+                iaf = layers.tf_inverse_flow(steps = self.layer_kwargs.get('steps', 1),
+                            layers = self.layer_kwargs.get('layers', 1),
+                            mean_only = self.layer_kwargs.get('mean_only', 1),
+                            activation = self.layers_kwargs.get('activation', 'relu'),
+                            name = 'iaf'+name_suffix)
+                sample = Lambda(iaf.sample, name = 'z_act'+name_suffix)
+                logdetjac = Lambda(iaf.    , name = '')
+
+
             elif self.type in ['maf', 'masked_arf']:#, 'gaussian_af', 'gaussian_arf', 'gaussian_maf']:
-                # THIS DOESNT MAKE SENSE ATM, MASKED AF FLOW FOR MARGINAL MOVED TO LOSSES
-                #if samp == 0:
+                tf_made = True
+                if tf_made:
+                    maf = layers.tf_masked_flow(steps = self.layer_kwargs.get('steps', 1),
+                            layers = self.layer_kwargs.get('layers', 1),
+                            mean_only = self.layer_kwargs.get('mean_only', 1),
+                            activation = self.layers_kwargs.get('activation', 'relu'),
+                            name = 'maf_marginal'+name_suffix)
+                    act_list.append(maf)
+                    # directly gives log probability! (from input z)
 
-                #if self.layer_kwargs.get('gaussian_inputs', False)
-                #else:
-
-                made_network = layers.MADE_network(steps = self.layer_kwargs.get('steps', 1), 
-                                                layers = self.layer_kwargs.get('layers', 1),
-                                                mean_only = self.layer_kwargs.get('mean_only', 1),
-                                                name = 'made_network'+name_suffix)
-                made_jacobian = Lambda(made_network.get_log_det_jac, name = 'made_jac'+name_suffix)
-                # prob z, to be fed to loss (treat this as recon?)
-                act_list.append(made_network)
-                addl_list.append(made_jacobian)
-
-                # in loss argument, define MADE network and gaussian/data input
-                # Input(Gauss noise) => MADE_network => recon on z network... loss = recon + jacobian = Eq log p
-
-                #flow = AR_flow(name = 'ar_flow'+name_suffix)
-                #density = Lambda(flow.get_density, name = 'density'+name_suffix)
-                #act_list.append(flow)
-                #addl_list.append(density)
+                else:
+                    made_network = layers.MADE_network(steps = self.layer_kwargs.get('steps', 1), 
+                                                    layers = self.layer_kwargs.get('layers', 1),
+                                                    mean_only = self.layer_kwargs.get('mean_only', 1),
+                                                    name = 'made_network'+name_suffix)
+                    made_jacobian = Lambda(made_network.get_log_det_jac, name = 'made_jac'+name_suffix)
+                    # prob z, to be fed to loss (treat this as recon?)
+                    act_list.append(made_network)
+                    addl_list.append(made_jacobian)
 
             else:
                 # import layer module by string (can be specified either in activation or layer_kwargs)

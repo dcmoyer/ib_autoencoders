@@ -124,6 +124,25 @@ def echo_var(inputs, d_max = 50):
     cap = K.var(capacities, axis = 0, keepdims = True)
     return tf.expand_dims(cap, 1) #tf
 
+def echo_minmax(inputs, _min = True, d_max = 50):
+    if isinstance(inputs, list):
+        cap_param = inputs[0]
+    else:
+        cap_param = inputs
+
+    min_capacity = 16.0 / d_max # d_max ... don't have access to d_max to actually pass
+    # compare to what Greg's implementation calculates for D, s.b. easy to verify
+
+    #capacities = tf.identity(tf.nn.softplus(-cap_param) - np.log(self.c_min), name='capacities')
+    capacities = tf.nn.softplus(- cap_param) #tf.identity(tf.nn.softplus(- cap_param), name='capacities') #tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
+    #cap = tf.reduce_sum(capacities, name="capacity")
+    print("Capacities ", capacities)
+    if _min:
+        cap = K.min(cap_param, axis = 0, keepdims = True)
+    else:
+        cap = K.max(cap_param, axis = 0, keepdims = True)
+    return tf.expand_dims(cap, 1) #tf
+
 def echo_loss(inputs, d_max = 50):
     echo_layer = inputs[0]
     cap_param = echo_layer #.get_weights()[0]#get_cap_param()
