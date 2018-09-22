@@ -16,17 +16,20 @@ EPS = K.epsilon()
 # EVERYTHING RETURNS BATCH X value AS DEFAULT (may sum or average if see fit)
     # return_dimensions option?
 
-def dim_sum(true, tensor):
+def dim_sum(true, tensor, keepdims = False):
     #print('DIMSUM TRUE ', _true)
     #print('DIMSUM Tensor ', tensor)
-    return K.sum(tensor, axis = -1)
+    return K.sum(tensor, axis = -1, keepdims = keepdims)
 
-def dim_sum_one(tensor):
+def dim_sum_one(tensor, keepdims = False):
     #print('DIMSUM TRUE ', _true)
     #print('DIMSUM Tensor ', tensor)
-    return K.sum(tensor, axis = -1)
+    return K.sum(tensor, axis = -1, keepdims = keepdims)
 
 def identity(true, tensor):
+    return tensor
+
+def identity_one(tensor):
     return tensor
 
 def loss_val(tensor):
@@ -122,6 +125,26 @@ def echo_var(inputs, d_max = 50):
     #cap = tf.reduce_sum(capacities, name="capacity")
     print("Capacities ", capacities)
     cap = K.var(capacities, axis = 0, keepdims = True)
+    return tf.expand_dims(cap, 1) #tf
+
+
+def echo_minmax(inputs, _min = True, d_max = 50):
+    if isinstance(inputs, list):
+        cap_param = inputs[0]
+    else:
+        cap_param = inputs
+
+    min_capacity = 16.0 / d_max # d_max ... don't have access to d_max to actually pass
+    # compare to what Greg's implementation calculates for D, s.b. easy to verify
+
+    #capacities = tf.identity(tf.nn.softplus(-cap_param) - np.log(self.c_min), name='capacities')
+    capacities = tf.nn.softplus(- cap_param) #tf.identity(tf.nn.softplus(- cap_param), name='capacities') #tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
+    #cap = tf.reduce_sum(capacities, name="capacity")
+    print("Capacities ", capacities)
+    if _min:
+        cap = K.min(cap_param, axis = 0, keepdims = True)
+    else:
+        cap = K.max(cap_param, axis = 0, keepdims = True)
     return tf.expand_dims(cap, 1) #tf
 
 def echo_loss(inputs, d_max = 50):

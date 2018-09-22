@@ -1,18 +1,15 @@
 {
-	"epochs": 100,
+	"epochs": 200,
 	"batch": 200,
 	"optimizer": "Adam",
-	"optimizer_params": {}, 
-	"lr": 0.001,
-	"encoder_dims": [200, 200, 50],
-	"decoder_dims": null,
+	"optimizer_params": {"beta_1":0.5}, 
 	"initializer": "glorot_uniform",
-	"activation": {  
-		"encoder": "softplus",
-		"decoder": "softplus"
-		},
-	"layers": [
-		{
+	"lr": "alemi_lr_sched",
+	"latent_dims": [200, 200, 50], 
+	"decoder_dims": [200, 200, 784],
+	"layers": 
+		[	
+			{
 			"type": "add",
 			"layer": -1,
 			"encoder": true,
@@ -23,11 +20,11 @@
 				"layer_kwargs":{
 					"steps": 4,
 					"mean_only": false,
-					"layers": [640,640,640,50]
+					"layers": [640,640,640,640]
 				}
 			}
-		}
-	],
+			}
+		],
 	"output_activation" : "sigmoid",
 	"recon": "bce",
 	"losses":

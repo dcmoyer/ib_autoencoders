@@ -1,6 +1,7 @@
 import numpy as np
 from abc import ABC, abstractmethod
 from keras.datasets import mnist, cifar10
+from scipy.misc import imread
 import os 
 import gzip
 
@@ -153,12 +154,12 @@ class DSprites(Dataset):
         self.dim2 = 64
         self.dim = 4096
         self.name = 'dsprites'
-        self.x_train, _, self.labels, _ = self.get_data()
+        self.x_train, _, self.y_train, _ = self.get_data()
         self.x_val = None
         self.x_test = None
 
     def get_data(self):
-        dataset_zip = np.load('dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz', encoding = 'bytes') # ‘latin1’
+        dataset_zip = np.load('datasets/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz', encoding = 'bytes') # ‘latin1’
         imgs = dataset_zip['imgs']
         imgs = imgs.reshape((imgs.shape[0], -1))
         latent_ground_truth = dataset_zip['latents_values']
@@ -168,16 +169,17 @@ class DSprites(Dataset):
 
 class Omniglot(Dataset):
     def __init__(self):
-        self.dim1 = None
-        self.dim2 = None
-        self.dim = None
+        self.dim1 = 105
+        self.dim2 = 105
+        self.dim = 105*105
+        self.dims = [105,105]
         self.name = 'omniglot'
         self.x_train = self.get_data()
         # TO DO: Create validation / test sets by resampling?
         self.x_val = None
         self.x_test = None 
 
-    def get_data(self, per_char = 5, total_chars = 964, imsize = 105, seed = 0, file_dir = 'omniglot_train/'):
+    def get_data(self, per_char = 5, total_chars = 964, imsize = 105, seed = 0, file_dir = 'datasets/omniglot_train/'):
         imgs = np.random.randint(1, 20, (total_chars,per_char))
         x_train = np.zeros((total_chars*per_char, imsize**2))
         for i in range(total_chars):
@@ -202,7 +204,12 @@ class CelebA(Dataset):
 
 class Cifar10(Dataset):
     def __init__(self):
-        raise NotImplementedError
+        self.dim1 = 32
+        self.dim2 = 32
+        self.dim3 = 3
+        self.dim = 3072
+        self.name = 'cifar10'
+        self.x_train, self.x_test, self.y_train, self.y_test = self.get_data()
     def get_data(self):
         (X_train, y_train), (X_test, y_test) = cifar10.load_data()
         return X_train, X_test, y_train, y_test

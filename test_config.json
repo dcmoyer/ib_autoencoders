@@ -1,5 +1,5 @@
 {
-	"epochs": 500,
+	"epochs": 1000,
 	"batch": 200,
 	"optimizer": "Adam",
 	"optimizer_params": {}, 
@@ -14,7 +14,7 @@
 			"k": 1,
 			"layer_kwargs":{
 				"d_max": 50,
-				"init": -5,
+				"init": 2.0,
 				"noise": "additive",
 				"trainable": true
 			}
@@ -33,15 +33,26 @@
 			"layer": -1, 
 			"encoder": true,
 			"weight": 1
+			},
+			{
+			"type": "echo_var",
+			"layer": -1, 
+			"encoder": true,
+			"weight": 0
+			},
+			{
+			"type": "echo_min",
+			"layer": -1, 
+			"encoder": true,
+			"weight": 0
+			}
+			{
+			"type": "echo_max",
+			"layer": -1, 
+			"encoder": true,
+			"weight": 0
 			}
 		],
-	"constraints":[
-		{
-			"loss": 0,
-			"value": 10.0,
-			"relation:": "equal"
-		}
-	],
 	"beta": 1.0,
 	"mismatch": null,
 	"anneal_schedule": null, 

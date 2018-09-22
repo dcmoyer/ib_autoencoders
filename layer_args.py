@@ -112,29 +112,62 @@ class Layer(object):
                 act_list.append(flow)
                 addl_list.append(density)
 
+            elif self.type in ['iaf', 'inverse_flow']:
+                z_mean = Dense(self.latent_dim, activation='linear',
+                               name='z_mean'+name_suffix)#**self.layer_kwargs)
+                z_logvar = Dense(self.latent_dim, activation='linear',
+                               name='z_var'+name_suffix)# **self.layer_kwargs)            
+                stats_list.append([z_mean, z_logvar])
+
+                try:
+                    mod = importlib.import_module('keras.activations')
+                    self.layer_kwargs['activation'] = getattr(mod, self.layer_kwargs['activation'])
+                except:
+                    pass
+                self.layer_kwargs['name'] = 'iaf'+name_suffix
+                iaf = Lambda(layers.tf_inverse_flow, arguments = self.layer_kwargs)
+                # iaf = layers.tf_inverse_flow(steps = self.layer_kwargs.get('steps', 1),
+                #             layers = self.layer_kwargs.get('layers', 1),
+                #             mean_only = self.layer_kwargs.get('mean_only', 1),
+                #             activation = self.layer_kwargs.get('activation', 'relu'),
+                #             name = 'iaf'+name_suffix)
+
+                # NOT CURRENTLY WORKING
+                # SAMPLE BIJECTOR : input = bijector, execute sample op
+                iaf_sample = Lambda(iaf.sample, name = 'z_act'+name_suffix)
+                print('*** CONSTANT JACOBIAN ???? ***', iaf.is_constant_jacobian)
+                logdetjac = Lambda(iaf.inverse_log_det_jacobian, arguments = {"event_n_dims": 2}, name = 'iaf_jac'+name_suffix)
+                act_list.append(iaf_sample)
+                addl_list.append(logdetjac) # doesn't matter what it calls?  sample to be safe
+
             elif self.type in ['maf', 'masked_arf']:#, 'gaussian_af', 'gaussian_arf', 'gaussian_maf']:
-                # THIS DOESNT MAKE SENSE ATM, MASKED AF FLOW FOR MARGINAL MOVED TO LOSSES
-                #if samp == 0:
+                tf_made = True
+                if tf_made:
+                    # args['steps']= self.layer_kwargs.get('steps', 1)
+                    # args['layers'] = self.layer_kwargs.get('layers', 1)
+                    # args['mean_only'] = self.layer_kwargs.get('mean_only', 1)
+                    # args['activation'] = self.layer_kwargs.get('activation', 'relu')
+                    self.layer_kwargs['name'] = 'maf_density'+name_suffix
+                    try:
+                        mod = importlib.import_module('keras.activations')
+                        self.layer_kwargs['activation'] = getattr(mod, self.layer_kwargs['activation'])
+                    except:
+                        pass
 
-                #if self.layer_kwargs.get('gaussian_inputs', False)
-                #else:
+                    maf = Lambda(layers.tf_masked_flow, arguments = self.layer_kwargs, name = 'masked_flow'+name_suffix)
+                    print("maf type ", maf)
+                    act_list.append(maf)
+                    # directly gives log probability! (from input z)
 
-                made_network = layers.MADE_network(steps = self.layer_kwargs.get('steps', 1), 
-                                                layers = self.layer_kwargs.get('layers', 1),
-                                                mean_only = self.layer_kwargs.get('mean_only', 1),
-                                                name = 'made_network'+name_suffix)
-                made_jacobian = Lambda(made_network.get_log_det_jac, name = 'made_jac'+name_suffix)
-                # prob z, to be fed to loss (treat this as recon?)
-                act_list.append(made_network)
-                addl_list.append(made_jacobian)
-
-                # in loss argument, define MADE network and gaussian/data input
-                # Input(Gauss noise) => MADE_network => recon on z network... loss = recon + jacobian = Eq log p
-
-                #flow = AR_flow(name = 'ar_flow'+name_suffix)
-                #density = Lambda(flow.get_density, name = 'density'+name_suffix)
-                #act_list.append(flow)
-                #addl_list.append(density)
+                else:
+                    made_network = layers.MADE_network(steps = self.layer_kwargs.get('steps', 1), 
+                                                    layers = self.layer_kwargs.get('layers', 1),
+                                                    mean_only = self.layer_kwargs.get('mean_only', 1),
+                                                    name = 'made_network'+name_suffix)
+                    made_jacobian = Lambda(made_network.get_log_det_jac, name = 'made_jac'+name_suffix)
+                    # prob z, to be fed to loss (treat this as recon?)
+                    act_list.append(made_network)
+                    addl_list.append(made_jacobian)
 
             else:
                 # import layer module by string (can be specified either in activation or layer_kwargs)
@@ -163,6 +196,7 @@ class Layer(object):
                         z_act = mod(self.latent_dim, **self.layer_kwargs)
                     else:
                         mod = importlib.import_module(str('keras.layers'))
+                        #mod = importlib.import_module(str('tensorflow.python.keras.layers'))
                         self.layer_kwargs['name'] = str(self.type + name_suffix)
                         
                         if self.type == 'Dense':

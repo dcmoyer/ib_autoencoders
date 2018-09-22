@@ -22,20 +22,26 @@ folders = [
 folders = [str('results/' + f) for f in folders]
 #for folder in folders:
 #    analysis.rd_curve(folder, beta = 'beta' in folder)
+f = ['results/vae_alemiLR_binary_mnist', 'results/vae100batch_binary_mnist']
+#f = ['results/vae_check_smalltrain_binary_mnist', 'results/echo2add_smalltrain_binary_mnist', 'results/echo_add_smalltrain_Init_binary_mnist']#results/echo_add_smalltrain_Init_binary_mnist']#, 'results/alemi_test_vae_binary_mnist']
+analysis.rd_curve(f, beta = True, name = 'checking')# f[0].split('/')[-1])
 
-f = ['results/infovae_beta_binary_mnist']#, 'results/alemi_test_vae_binary_mnist']
-analysis.rd_curve(f, beta = True, name = 'echo_vae_mnist')
+f = ['results/made_fmnist_fmnist', 'results/vae_fmnist_fmnist', 'results/echo_fmnist_fmnist']#,'results/echo_alemi_-.5init_binary_mnist']
+analysis.rd_curve(f, beta = True, name = 'fmnist')#f[0].split('/')[-1], threshold = .00001)
 
-f = ['results/echo_add_alemi_.001_binary_mnist']#, 'results/alemi_test_vae_binary_mnist']
-analysis.rd_curve(f, beta = True, name = 'echo_alemi_fmnist')
+#f = ['results/echoCONV-smalltrain_binary_mnist', 'results/vaeCONV-smalltrain_binary_mnist']#,'results/echo_alemi_-.5init_binary_mnist']
+#analysis.rd_curve(f, beta = True, name = 'conv_smalltrain')
 
-f = ['results/alemi_vae_beta_fmnist']#, 'results/alemi_test_vae_binary_mnist']
-analysis.rd_curve(f, beta = True, name = 'vae_alemi_fmnist')
 
-fn = 'echo_add_alemi_.001_0.8.pickle'
-with open(os.path.join(os.getcwd(), f[0], fn), "rb") as pkl_data:
-    results = pickle.load(pkl_data)
-analysis.plot_loss(results, keys=['bce_recon_loss', 'mi_echo_reg_loss'], prefix = f[0]+'/')
+f = ['results/echo001_conv_smalltrain_fmnist', 'results/vae001_conv_smalltrain_fmnist']
+analysis.rd_curve(f, beta = True, name = 'fmnist_smalltrain')
+#f = ['results/echo0init_smalltrain_binary_mnist', 'results/echo2add_smalltrain_binary_mnist', 'results/echo-2corrected_binary_mnist']#, 'results/alemi_test_vae_binary_mnist']
+#analysis.rd_curve(f, beta = True, name = f[0].split('/')[-1], threshold = 0.000001)
+
+#fn = 'alemi_echo_0.7.pickle'
+#with open(os.path.join(os.getcwd(), f[1], fn), "rb") as pkl_data:
+#   results = pickle.load(pkl_data)
+#analysis.plot_loss(results, keys=['bce_recon_loss', 'mi_echo_reg_loss'], prefix = f[0]+'/')
 
 # fn = 'alemi_echoAddBeta_0.5.pickle'
 # with open(os.path.join(os.getcwd(), f[1], fn), "rb") as pkl_data:
