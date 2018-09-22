@@ -191,45 +191,34 @@ class Loss(object):
             self.from_output = [] if (self.method == 'prior' or self.method == 'mixture') else ['act']
             return Lambda(l.mmd_loss, arguments = self.loss_kwargs, name = 'mmd'+name_suffix)
 
-        elif self.type in ['made_density', 'made_marginal']:
-            # default is gaussian_inputs (i.e. sample isotropic gauss, transform into mean / mean + std of gaussian)
-            # specify loss['mean_only'] = false if stddev learned, otherwise mean_only w/ stddev = 1
-            self.type = 'made_density'
-            #if self.encoder: # why?
-
-            # RANDOM NOISE =?  Q(z) ESTIMATE .... INPUT = Z ACT as points to evaluate (PROVIDES SHAPE)
-            # loss function can take E_q r(z), but also E_q q(z|x) (GAUSSIAN for now, later IAF)
-            
-            # treat as a RECON loss
+        elif self.type in ['iaf', 'iaf_encoder']:
             self.from_layer = ['act', 'addl']
-            #self.from_output = ['act']
-            return Lambda(l.made_marginal_density, arguments = self.loss_kwargs, name = 'made'+name_suffix)
+            return Lambda(l.logdetjac)
 
+        elif self.type in ['made_density', 'made_marginal']:
+            prev_made = False
+            if not prev_made:
+                self.from_layer = ['act'] #arguments = {"keepdims":True}
+                return Lambda(l.dim_sum_one, name = 'made'+name_suffix)
+                #return Lambda(l.identity_one, name = 'made'+name_suffix)
+            else:
+                # default is gaussian_inputs (i.e. sample isotropic gauss, transform into mean / mean + std of gaussian)
+                # specify loss['mean_only'] = false if stddev learned, otherwise mean_only w/ stddev = 1
+                self.type = 'made_density'
+                #
+                # RANDOM NOISE =?  Q(z) ESTIMATE .... INPUT = Z ACT as points to evaluate (PROVIDES SHAPE)
+                # loss function can take E_q r(z), but also E_q q(z|x) (GAUSSIAN for now, later IAF)
+                
+                # treat as a RECON loss
+                self.from_layer = ['act', 'addl']
+                return Lambda(l.made_marginal_density, arguments = self.loss_kwargs, name = 'made'+name_suffix)
+
+        # attempt at mismatch sampling from p(z)?
         elif self.type in ['made_decoder_density', 'prior_distortion', 'prior_vim', 'prior_relevant']:
             # TRY TO GET RECON UNDER P(Z) MEANS (OR rand draws from conditional).. sample from MAF?
             self.type = 'made_decoder_density'
             self.from_layer['act']
             return Lambda(model._decoder, name = 'prior_recon'+name_suffix)
-            # self.made_layers = defaultdict(lambda: defaultdict(dict))
-            # for i in range(self.loss_kwargs['steps']):
-            #     mean_made = layers.MADE(self.loss_kwargs['dims'], random_input_order = True, name = 'made_mean_'+str(i)+name_suffix, **self.loss_kwargs)
-            #     self.made_layers[i]['stat'].append(mean_made)
-            #     try:
-            #         # loss mean only?
-            #         a = self.mean_only
-            #     except:
-            #         mean_only = self.loss_kwargs.get('mean_only', False)
-            #     if mean_only:
-            #         made_std = layers.MADE(self.latent_dim, self.loss_kwargs['dims'], random_input_order = True, name = 'made_std_'+str(i)+name_suffix, **self.loss_kwargs)
-            #         #stat_list.append([made_mean, made_std])
-            #     else:
-            #         made_std = K.constant(1.0)
-            #         #stat_list.append([made_mean])
-            #     self.made_layers[i]['stat'].append(made_std)
-            #     maf_act = Lambda(layers.vae_sample, arguments = {"std": made_std}, name = 'made_act'+str(i)+name_suffix)
-            #     self.made_layers[i]['act'].append(maf_act)
-
-
 
         else:
             # TRY IMPORT OF FUNCTION FROM LOSSES

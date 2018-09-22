@@ -1,6 +1,7 @@
 import numpy as np
 from abc import ABC, abstractmethod
 from keras.datasets import mnist, cifar10
+from scipy.misc import imread
 import os 
 import gzip
 
@@ -153,7 +154,7 @@ class DSprites(Dataset):
         self.dim2 = 64
         self.dim = 4096
         self.name = 'dsprites'
-        self.x_train, _, self.labels, _ = self.get_data()
+        self.x_train, _, self.y_train, _ = self.get_data()
         self.x_val = None
         self.x_test = None
 
@@ -168,16 +169,17 @@ class DSprites(Dataset):
 
 class Omniglot(Dataset):
     def __init__(self):
-        self.dim1 = None
-        self.dim2 = None
-        self.dim = None
+        self.dim1 = 105
+        self.dim2 = 105
+        self.dim = 105*105
+        self.dims = [105,105]
         self.name = 'omniglot'
         self.x_train = self.get_data()
         # TO DO: Create validation / test sets by resampling?
         self.x_val = None
         self.x_test = None 
 
-    def get_data(self, per_char = 5, total_chars = 964, imsize = 105, seed = 0, file_dir = 'omniglot_train/'):
+    def get_data(self, per_char = 5, total_chars = 964, imsize = 105, seed = 0, file_dir = 'datasets/omniglot_train/'):
         imgs = np.random.randint(1, 20, (total_chars,per_char))
         x_train = np.zeros((total_chars*per_char, imsize**2))
         for i in range(total_chars):

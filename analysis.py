@@ -119,7 +119,7 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
         for i in sorted(range(len(param_inds[folder])), key=lambda k: float(param_inds[folder][k])): #range(len(param_inds[folder])):
             if ('echo' in folder and i >= len(regs[folder]['mi_echo_reg_loss'])) or ('made' in folder and i >= len(regs[folder]['made_reg_loss'])):
                 continue
-            if ('vae_reg_loss' in folder and i >= len(regs[folder]['vae_reg_loss'])):
+            if ('vae' in folder and i >= len(regs[folder]['vae_reg_loss'])):
                 continue
             # headers
             if csv_str=='':

@@ -2,7 +2,7 @@
 	"epochs": 200,
 	"batch": 200,
 	"optimizer": "Adam",
-	"optimizer_params": {"beta_1":0.5}, 
+	"optimizer_params": {}, 
 	"initializer": "glorot_uniform",
 	"lr": "alemi_lr_sched",
 	"input_shape": [28, 28, 1],
@@ -81,7 +81,7 @@
 				"layer_kwargs":{
 					"steps": 4,
 					"mean_only": false,
-					"layers": [640,640,640]
+					"layers": [640,640,640,64]
 				}
 			}
 			},
@@ -177,7 +177,7 @@
 			"type": "made_density",
 			"layer": -1, 
 			"encoder": true,
-			"weight": -1
+			"weight": 1
 		},
 		{
 			"type": "gaussian_entropy",

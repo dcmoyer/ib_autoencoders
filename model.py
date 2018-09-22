@@ -58,8 +58,9 @@ class NoiseModel(Model):
         # All failed dictionary reads first check default config, then fall back to given value
         self.filename = filename
         self.verbose = verbose
+        #'dataset': None, # specify + import dataset class
+        # 'input_shape': None,
         self.args = {
-            'dataset': 'mnist', # specify + import dataset class
             'per_label': None,
             'epochs': 100,
             'batch': 100,
@@ -67,8 +68,7 @@ class NoiseModel(Model):
             'initializer': 'glorot_uniform',
             'optimizer_params': {},
             'lr': 0.001,
-            'lr_lagr': .01,
-            'input_shape': None,
+            'lr_lagr': 0.01,
             'activation': {'encoder': 'softplus', 'decoder': 'softplus'},
             'output_activation': 'sigmoid',
             'encoder_dims': None, #[200, 200, 50],
@@ -87,6 +87,8 @@ class NoiseModel(Model):
             'anneal_schedule': None,
             'anneal_functions': None,
         }
+        self.input_shape = None
+        self.dataset = dataset
         if config is not None:
             if isinstance(config, dict):
                 self.config = config
@@ -118,7 +120,7 @@ class NoiseModel(Model):
         elif self.dataset == 'binary_mnist':
             self.dataset = dataset.MNIST(binary = True)
         elif self.dataset == 'omniglot':
-            pass
+            self.dataset = dataset.Omniglot()
         elif self.dataset == 'celeb_a':
             pass
         elif self.dataset == 'dsprites':
@@ -168,7 +170,7 @@ class NoiseModel(Model):
                 print(e)
                 raise ValueError
 
-        if self.decoder_dims is None: # check if has decoder_dims arg
+        if self.decoder_dims is None or self.decoder_dims[-1] != 1: # check if has decoder_dims arg
             self.decoder_dims = list(reversed(self.encoder_dims[:-1]))
             self.decoder_dims.append(self.dataset.dim)
         else:
@@ -347,9 +349,14 @@ class NoiseModel(Model):
 
     # TO DO : MAKE FIT AUTOMATICALLY READ DATASET
     def fit(self, x_train, y_train = None, x_val = None, y_val = None):
+        print("INPUT SHAPE ", self.input_shape)
         if self.input_shape is None:
-            self.input_shape = (self.dataset.dim,)
+            self.input_shape = (self.dataset.dims[0], self.dataset.dims[1], 1) if 'Conv' in self.layers[0]['type'] else (self.dataset.dim,)
+            print(self.dataset)
+            print(self.dataset.dim, self.dataset.dims)
         self.input_tensor = Input(shape = (self.dataset.dim,)) 
+        print("INPUT SHAPE ", self.input_shape)
+        print("INPUT TENSOR ", self.input_tensor)
         if self.input_shape is not None:
             self.input = Reshape(self.input_shape)(self.input_tensor)
         else:
@@ -609,7 +616,7 @@ class NoiseModel(Model):
                         #else:
                         outputs.extend(layers[lyr][inputs_layer[j]])
                         print("*** adding (act/addl) ", layers[lyr][inputs_layer[j]])
-                        print(layers[lyr][inputs_layer[j]])
+                        print(outputs)
                     elif 'stat' in inputs_layer[j]:
                         try:
                             outputs.extend(layers[lyr][inputs_layer[j]][0])
@@ -644,9 +651,14 @@ class NoiseModel(Model):
                 #print('outputs for layer ', outputs, [K.int_shape(o) for o in outputs])
                 try:
                     for j in range(len(outputs)):
+                        #outputs[j] = Flatten()(outputs[j]) #
+                        outputs[j] = Reshape([-1, *outputs[j]._keras_shape[1:]])(outputs[j]) if len(K.int_shape(outputs[j])) > 2 else outputs[j]
                         outputs[j] = Flatten()(outputs[j]) if len(K.int_shape(outputs[j])) > 2 else outputs[j]
-                except:
+                        #outputs[j] = tf.reshape(outputs[j], [-1, K.int_shape(outputs[j])[-1]]) if len(K.int_shape(outputs[j])) > 2 else outputs[j]
+                except Exception as e:
+                    print(e)
                     for j in range(len(outputs)):
+                        print(outputs[j])
                         for k in range(len(outputs[j])):
                             outputs[j][k] = Flatten()(outputs[j][k]) if len(K.int_shape(outputs[j][k])) > 2 else outputs[j][k]
                 
@@ -666,6 +678,7 @@ class NoiseModel(Model):
                     try:
                         self.model_outputs.append(self.loss_functions[-1](outputs))
                     except:
+                        print("outputs ", outputs)
                         self.model_outputs.append(self.loss_functions[-1](outputs[0]))
                     self.model_losses.append(l.dim_sum)
                     self.model_loss_weights.append(loss.get_loss_weight())
@@ -832,6 +845,7 @@ class NoiseModel(Model):
                     print("*** DENSITIES *** ", density)
                     if density is not None:
                         functions = density.make_function_list(index = layer_ind)
+                        print("functions ", functions)
                         layers_list = self.density_estimators
                         layers_list.append(defaultdict(list))
                     else:
@@ -842,7 +856,7 @@ class NoiseModel(Model):
                 else:   
                     layers_list = self.encoder_layers if encoder else self.decoder_layers
                     layers_list.append(defaultdict(list))
-                    print('layer size ', layer.latent_dim, ' kw args: ', layer.layer_kwargs)
+                    print('layer size ', layer.latent_dim, ' type ', layer.type,  ' kw args: ', layer.layer_kwargs)
                     # each function holds is a dictionary with 'stat' and 'act' (each of length k, with stats items [z_mean, z_var])
                     functions = layer.make_function_list(index = layer_ind)
 
@@ -855,6 +869,7 @@ class NoiseModel(Model):
                 act_k = functions['act']
                 addl_k = functions['addl']
 
+                print("layer functions: stats ", functions['stat'], ' act ', functions['act'], ' addl ', functions['addl'])
                 if stat_k:
                     current = current_call[0]
                     intermediate_stats = []

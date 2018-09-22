@@ -16,17 +16,20 @@ EPS = K.epsilon()
 # EVERYTHING RETURNS BATCH X value AS DEFAULT (may sum or average if see fit)
     # return_dimensions option?
 
-def dim_sum(true, tensor):
+def dim_sum(true, tensor, keepdims = False):
     #print('DIMSUM TRUE ', _true)
     #print('DIMSUM Tensor ', tensor)
-    return K.sum(tensor, axis = -1)
+    return K.sum(tensor, axis = -1, keepdims = keepdims)
 
-def dim_sum_one(tensor):
+def dim_sum_one(tensor, keepdims = False):
     #print('DIMSUM TRUE ', _true)
     #print('DIMSUM Tensor ', tensor)
-    return K.sum(tensor, axis = -1)
+    return K.sum(tensor, axis = -1, keepdims = keepdims)
 
 def identity(true, tensor):
+    return tensor
+
+def identity_one(tensor):
     return tensor
 
 def loss_val(tensor):
@@ -123,6 +126,7 @@ def echo_var(inputs, d_max = 50):
     print("Capacities ", capacities)
     cap = K.var(capacities, axis = 0, keepdims = True)
     return tf.expand_dims(cap, 1) #tf
+
 
 def echo_minmax(inputs, _min = True, d_max = 50):
     if isinstance(inputs, list):
