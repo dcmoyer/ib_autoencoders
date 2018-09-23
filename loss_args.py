@@ -191,15 +191,15 @@ class Loss(object):
             self.from_output = [] if (self.method == 'prior' or self.method == 'mixture') else ['act']
             return Lambda(l.mmd_loss, arguments = self.loss_kwargs, name = 'mmd'+name_suffix)
 
-        elif self.type in ['iaf', 'iaf_encoder']:
-            self.from_layer = ['act', 'addl']
-            return Lambda(l.logdetjac)
+        elif self.type in ['iaf', 'iaf_encoder', 'iaf_conditional', 'iaf_density']:
+            self.from_layer = ['addl']
+            return Lambda(l.dim_sum_one, arguments = {"keepdims": True}, name = 'iaf'+name_suffix)
 
         elif self.type in ['made_density', 'made_marginal']:
             prev_made = False
             if not prev_made:
                 self.from_layer = ['act'] #arguments = {"keepdims":True}
-                return Lambda(l.dim_sum_one, name = 'made'+name_suffix)
+                return Lambda(l.dim_sum_one, arguments = {"keepdims": True}, name = 'made'+name_suffix)
                 #return Lambda(l.identity_one, name = 'made'+name_suffix)
             else:
                 # default is gaussian_inputs (i.e. sample isotropic gauss, transform into mean / mean + std of gaussian)

@@ -1,7 +1,7 @@
 import numpy as np
 import keras.backend as K
 import importlib
-from keras.layers import Dense, Lambda
+from keras.layers import Dense, Lambda, Reshape
 import layers
 import tensorflow as tf
 
@@ -124,21 +124,23 @@ class Layer(object):
                     self.layer_kwargs['activation'] = getattr(mod, self.layer_kwargs['activation'])
                 except:
                     pass
-                self.layer_kwargs['name'] = 'iaf'+name_suffix
-                iaf = Lambda(layers.tf_inverse_flow, arguments = self.layer_kwargs)
+                #self.layer_kwargs['name'] = 'iaf'+name_suffix
+                #iaf = Lambda(layers.tf_inverse_flow, arguments = self.layer_kwargs)
                 # iaf = layers.tf_inverse_flow(steps = self.layer_kwargs.get('steps', 1),
                 #             layers = self.layer_kwargs.get('layers', 1),
                 #             mean_only = self.layer_kwargs.get('mean_only', 1),
                 #             activation = self.layer_kwargs.get('activation', 'relu'),
                 #             name = 'iaf'+name_suffix)
 
-                # NOT CURRENTLY WORKING
+                # NOT CURRENTLY WORKING == make it a LAYER!!!!
                 # SAMPLE BIJECTOR : input = bijector, execute sample op
-                iaf_sample = Lambda(iaf.sample, name = 'z_act'+name_suffix)
-                print('*** CONSTANT JACOBIAN ???? ***', iaf.is_constant_jacobian)
-                logdetjac = Lambda(iaf.inverse_log_det_jacobian, arguments = {"event_n_dims": 2}, name = 'iaf_jac'+name_suffix)
-                act_list.append(iaf_sample)
-                addl_list.append(logdetjac) # doesn't matter what it calls?  sample to be safe
+                iaf = layers.IAF(name = 'z_act'+name_suffix,
+                    **self.layer_kwargs)
+                iaf_density = Lambda(iaf.get_density, name = 'iaf_conditional'+name_suffix)
+                #print('*** CONSTANT JACOBIAN ???? ***', iaf.is_constant_jacobian)
+                #logdetjac = Lambda(iaf.inverse_log_det_jacobian, arguments = {"event_n_dims": 2}, name = 'iaf_jac'+name_suffix)
+                act_list.append(iaf)
+                addl_list.append(iaf_density) # doesn't matter what it calls?  sample to be safe
 
             elif self.type in ['maf', 'masked_arf']:#, 'gaussian_af', 'gaussian_arf', 'gaussian_maf']:
                 tf_made = True
@@ -153,9 +155,16 @@ class Layer(object):
                         self.layer_kwargs['activation'] = getattr(mod, self.layer_kwargs['activation'])
                     except:
                         pass
+                          
+                    reshape = Reshape((self.latent_dim,), name = 'conv_reshape'+name_suffix)
 
+                    #if len(K.int_shape(z_mean)) > 2:
+                        # tf.reduce_prod(tf.shape(z_mean)[1:])
+                    #   z_mean = Reshape([-1, dim])(z_mean) 
+                        #z_mean = Reshape([-1, *z_mean._keras_shape[1:]])(z_mean) 
+                        #z_mean = Flatten()(z_mean)
                     maf = Lambda(layers.tf_masked_flow, arguments = self.layer_kwargs, name = 'masked_flow'+name_suffix)
-                    print("maf type ", maf)
+                    stats_list.append([reshape])
                     act_list.append(maf)
                     # directly gives log probability! (from input z)
 
