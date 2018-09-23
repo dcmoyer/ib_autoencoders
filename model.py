@@ -652,11 +652,12 @@ class NoiseModel(Model):
                 try:
                     for j in range(len(outputs)):
                         #outputs[j] = Flatten()(outputs[j]) #
-                        outputs[j] = Reshape([-1, *outputs[j]._keras_shape[1:]])(outputs[j]) if len(K.int_shape(outputs[j])) > 2 else outputs[j]
+                        #outputs[j] = Reshape([-1, *outputs[j]._keras_shape[1:]])(outputs[j]) if len(K.int_shape(outputs[j])) > 2 else outputs[j]
                         outputs[j] = Flatten()(outputs[j]) if len(K.int_shape(outputs[j])) > 2 else outputs[j]
                         #outputs[j] = tf.reshape(outputs[j], [-1, K.int_shape(outputs[j])[-1]]) if len(K.int_shape(outputs[j])) > 2 else outputs[j]
                 except Exception as e:
-                    print(e)
+                    if not 'density' in loss.type:
+                        print("***Exception***", e)
                     for j in range(len(outputs)):
                         print(outputs[j])
                         for k in range(len(outputs[j])):
@@ -814,6 +815,7 @@ class NoiseModel(Model):
                     
                 try:
                     if self.layers[arg_ind]['density_estimator']['type'] in ['maf', 'masked_arf']: 
+                        self.layers[arg_ind]['density_estimator']['latent_dim'] = self.layers[arg_ind]['latent_dim']
                         density = layer_args.Layer(**self.layers[arg_ind]['density_estimator']) 
                 except:
                     pass
@@ -879,8 +881,13 @@ class NoiseModel(Model):
                         # needed to create list of z_mean, z_var to append to layers_list
                         for z in stat_lyr:
                             intermediate_stats.append(z(current))
-                        layers_list[layer_ind]['stat'].append(intermediate_stats)
-                    current_call = layers_list[layer_ind]['stat']
+                        try:
+                            layers_list[layer_ind]['stat'].append(intermediate_stats)
+                            current_call = layers_list[layer_ind]['stat']
+                        except: 
+                            layers_list[-1]['stat'].append(intermediate_stats)
+                            current_call = layers_list[-1]['stat']
+                            
                         # call act k layer on stat k [z_mean, z_var]
                         #for stat, act in zip(layers_list[layer_ind]['stat'], act_k):
                         #    print('stat ', stat, 'act ', act)
@@ -895,13 +902,15 @@ class NoiseModel(Model):
                         current = current_call[k] if len(current_call) > 1 else current_call[0]
 
                     print("CURRENT (i.e. prev layer) ", current, current_call)
-                    a = act_lyr(current) # if not echo_flag else act_lyr(current)[0]
+                    act = act_lyr(current) # if not echo_flag else act_lyr(current)[0]
                     try:
-                        layers_list[layer_ind]['act'].append(a)
+                        layers_list[layer_ind]['act'].append(act)
                         current_call = layers_list[layer_ind]['act']
                     except:
-                        layers_list[-1]['act'].append(a)
-                        #current_call = layers_list[-1]['act']
+                        layers_list[-1]['act'].append(act)
+                        print("ACTIVATION TYPE ", act, type(act))
+                        if isinstance(act, layers.IAF):
+                            current_call = layers_list[-1]['act']
                         # ADDED FOR MADE, which doesn't call on activation layer?
                 
 
@@ -914,7 +923,7 @@ class NoiseModel(Model):
                     if isinstance(current_call, list):
                         print("current is a list")
                         current = current_call[k] if len(current_call) > 1 else current_call[0]
-                    print("calling")
+                    print("calling on input: ", current)
                     a = addl_lyr(current)
                     print("done calling")
                     try:
