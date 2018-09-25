@@ -1,9 +1,9 @@
 {
-	"epochs": 120,
-	"batch": 200,
+	"epochs": 200,
+	"batch": 100,
 	"optimizer": "Adam",
-	"optimizer_params": {}, 
-	"lr": 0.001,
+	"optimizer_params": {"beta_1":0.5}, 
+	"lr": "alemi_lr_sched",
 	"input_shape": [28, 28, 1],
 	"latent_dims": [32, 32, 64, 64, 256, 64],
 	"decoder_dims": [64, 64, 64, 32, 32, 32, 1],
@@ -13,7 +13,7 @@
 			"layer": 0, 
 			"encoder": true,
 			"type": "Conv2D",
-			"activation": "keras.activations.relu",	
+			"activation": "custom_functions.activations.gated_linear",	
 			"layer_kwargs":
 				{
 					"kernel_size": 5,
@@ -25,7 +25,7 @@
 			"layer": 1, 
 			"encoder": true,
 			"type": "Conv2D",
-			"activation": "keras.activations.relu",	
+			"activation": "custom_functions.activations.gated_linear",	
 			"layer_kwargs":
 				{
 					"kernel_size": 5,
@@ -37,7 +37,7 @@
 			"layer": 2, 
 			"encoder": true,
 			"type": "Conv2D",
-			"activation": "keras.activations.relu",	
+			"activation": "custom_functions.activations.gated_linear",	
 			"layer_kwargs":
 				{
 					"kernel_size": 5,
@@ -49,7 +49,7 @@
 			"layer": 3, 
 			"encoder": true,
 			"type": "Conv2D",
-			"activation": "keras.activations.relu",	
+			"activation": "custom_functions.activations.gated_linear",	
 			"layer_kwargs":
 				{
 					"kernel_size": 5,
@@ -61,7 +61,7 @@
 			"layer": 4, 
 			"encoder": true,
 			"type": "Conv2D",
-			"activation": "keras.activations.relu",	
+			"activation": "custom_functions.activations.gated_linear",	
 			"layer_kwargs":
 				{
 					"kernel_size": 7,
@@ -76,16 +76,16 @@
 			"k": 1,
 			"layer_kwargs":{
 				"d_max": 50,
-				"init": -5,
+				"init": -2.0,
 				"trainable": true,
-				"noise": "additive"
+				"noise": "multiplicative"
 			}	
 			},
 			{
 			"layer": 0, 
 			"encoder": false,
 			"type": "Conv2DTranspose",
-			"activation": "keras.activations.relu",	
+			"activation": "custom_functions.activations.gated_linear",	
 			"layer_kwargs":
 				{
 					"kernel_size": 7,
@@ -97,7 +97,7 @@
 			"layer": 1, 
 			"encoder": false,
 			"type": "Conv2DTranspose",
-			"activation": "keras.activations.relu",	
+			"activation": "custom_functions.activations.gated_linear",	
 			"layer_kwargs":
 				{
 					"kernel_size": 5,
@@ -109,7 +109,7 @@
 			"layer": 2, 
 			"encoder": false,
 			"type": "Conv2DTranspose",
-			"activation": "keras.activations.relu",	
+			"activation": "custom_functions.activations.gated_linear",	
 			"layer_kwargs":
 				{
 					"kernel_size": 5,
@@ -121,7 +121,7 @@
 			"layer": 3, 
 			"encoder": false,
 			"type": "Conv2DTranspose",
-			"activation": "keras.activations.relu",	
+			"activation": "custom_functions.activations.gated_linear",	
 			"layer_kwargs":
 				{
 					"kernel_size": 5,
@@ -133,7 +133,7 @@
 			"layer": 4, 
 			"encoder": false,
 			"type": "Conv2DTranspose",
-			"activation": "keras.activations.relu",	
+			"activation": "custom_functions.activations.gated_linear",	
 			"layer_kwargs":
 				{
 					"kernel_size": 5,
@@ -145,7 +145,7 @@
 			"layer": 5, 
 			"encoder": false,
 			"type": "Conv2DTranspose",
-			"activation": "keras.activations.relu",	
+			"activation": "custom_functions.activations.gated_linear",	
 			"layer_kwargs":
 				{
 					"kernel_size": 4,

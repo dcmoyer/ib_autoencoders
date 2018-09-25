@@ -32,13 +32,13 @@
 			"type": "made_density",
 			"layer": -1, 
 			"encoder": true,
-			"weight": -1
+			"weight": 1
 		},
 		{
-			"type": "gaussian_entropy",
+			"type": "gaussian_neg_ent",
 			"layer": 1, 
 			"encoder": true,
-			"weight": -1
+			"weight": 1
 		}
 		],
 	"beta": 1.0,

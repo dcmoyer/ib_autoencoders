@@ -1,10 +1,9 @@
 {
-	"epochs": 200,
+	"epochs": 400,
 	"batch": 100,
 	"optimizer": "Adam",
 	"optimizer_params": {"beta_1":0.5}, 
-	"initializer": "glorot_uniform",
-	"lr": "alemi_lr_sched",
+	"lr": "alemi_400",
 	"input_shape": [28, 28, 1],
 	"latent_dims": [32, 32, 64, 64, 256, 64],
 	"decoder_dims": [64, 64, 64, 32, 32, 32, 1],
@@ -71,26 +70,16 @@
 				}
 			},
 			{
-			"type": "iaf",
-			"layer": -1,
+			"layer": 5, 
 			"encoder": true,
+			"type": "echo", 
 			"k": 1,
 			"layer_kwargs":{
-					"steps": 4,
-					"mean_only": true,
-					"layers": [640,640,640,640],
-					"activation": "custom_functions.activations.gated_linear"
-				},
-			"density_estimator":
-			{
-				"type":"maf",
-				"layer_kwargs":{
-					"steps": 4,
-					"mean_only": true,
-					"layers": [640,640,640,640],
-					"activation": "custom_functions.activations.gated_linear" 
-				}
-			}
+				"d_max": 50,
+				"init": -2.0,
+				"trainable": true,
+				"noise": "additive"
+			}	
 			},
 			{
 			"layer": 0, 
@@ -176,27 +165,24 @@
 					"padding": "same"
 				}
 			}
-		],
-	"output_activation" : "sigmoid",
-	"recon": "bce",
-	"losses":
-		[{
-			"type": "made_density",
-			"layer": -1, 
-			"encoder": true,
-			"weight": 1,
-			"layer_kwargs":{
-				"activation": "custom_functions.activations.gated_linear"
-			}
+		], 
+	"initializer": "glorot_uniform",
+	"activation": {  
+		"encoder": "softplus",
+		"decoder": "softplus"
 		},
- 		{
-			"type": "iaf",
+	"output_activation" : "sigmoid",
+	"recon": "bce", 
+	"losses":
+		[
+			{
+			"type": "echo",
 			"layer": -1, 
 			"encoder": true,
 			"weight": 1
-		}
+			}
 		],
-	"beta": 1.0,
+	"beta": 1.0, 
 	"anneal_schedule": null, 
 	"anneal_function": null
 }

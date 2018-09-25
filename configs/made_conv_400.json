@@ -1,10 +1,10 @@
 {
-	"epochs": 200,
+	"epochs": 400,
 	"batch": 100,
 	"optimizer": "Adam",
 	"optimizer_params": {"beta_1":0.5}, 
 	"initializer": "glorot_uniform",
-	"lr": "alemi_lr_sched",
+	"lr": "alemi_400",
 	"input_shape": [28, 28, 1],
 	"latent_dims": [32, 32, 64, 64, 256, 64],
 	"decoder_dims": [64, 64, 64, 32, 32, 32, 1],

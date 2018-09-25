@@ -71,16 +71,10 @@
 				}
 			},
 			{
-			"type": "iaf",
+			"type": "add",
 			"layer": -1,
 			"encoder": true,
 			"k": 1,
-			"layer_kwargs":{
-					"steps": 4,
-					"mean_only": true,
-					"layers": [640,640,640,640],
-					"activation": "custom_functions.activations.gated_linear"
-				},
 			"density_estimator":
 			{
 				"type":"maf",
@@ -90,7 +84,7 @@
 					"layers": [640,640,640,640],
 					"activation": "custom_functions.activations.gated_linear" 
 				}
-			}
+			  }
 			},
 			{
 			"layer": 0, 
@@ -184,13 +178,10 @@
 			"type": "made_density",
 			"layer": -1, 
 			"encoder": true,
-			"weight": 1,
-			"layer_kwargs":{
-				"activation": "custom_functions.activations.gated_linear"
-			}
+			"weight": 1
 		},
  		{
-			"type": "iaf",
+			"type": "gaussian_neg_ent",
 			"layer": -1, 
 			"encoder": true,
 			"weight": 1
