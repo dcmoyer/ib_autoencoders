@@ -436,6 +436,9 @@ class NoiseModel(Model):
                         sigmas = sigs,
                         prefix = self.filename)
 
+        analysis.sample_echo_reconstruction(self.model, self.dataset, echo_batch = self.batch, echo_dmax = self.encoder_layers[-1].layer_kwargs['d_max'],
+            prefix = self.filename)
+
         if self.encoder_dims[-1] == 2:
             analysis.manifold(z, x_pred, per_dim = 50, dims = self.dataset.dims, location = 'results/'+self.filename)
         
