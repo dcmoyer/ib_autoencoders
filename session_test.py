@@ -11,7 +11,7 @@ parser.add_argument('--per_label', type=int)
 parser.add_argument('--dataset', type=str, default='binary_mnist')
 parser.add_argument('--num_losses', type=int, default= 1)                                                                                                                               
 parser.add_argument('--params', type=str, default= 'betas')     
-#parser.add_argument('--noise', type=str)                                                                                                                                     
+parser.add_argument('--dmax', type=int, nargs='+') #parser.add_argument('--noise', type=str)                                                                                                                                     
 #parser.add_argument('--constraint', type=float)                                                                                                                              
 args, _ = parser.parse_known_args()
 
@@ -23,10 +23,10 @@ args, _ = parser.parse_known_args()
 if args.params in ['few_betas', 'small_beta']:
         betas = [1.0, 2, 0.1, 0.5]
 else:
-        betas = [0, 0.125, 0.0005, 8, 4, 0.25, 2, 1.1, 1.75, 0.025, 0.175, 0.05, 0.5, 1.0, 0.15, 0.4, 0.225, 0.01, 0.1, 0.9, 0.0075, 0.075, 0.7, 0.3, 0.2, 1.5, 1.3]
-#betas = [0.0, .0005, .0001, .001, .005, .01, .1, .25, .5, .7, .8, .9, 1.0, 1.1, 1.3, 1.5, 2, 4, 8]
-#betas = [.1, .25, .5, .7, .8, .9, 1.0, 1.1, 1.3, 1.5, 2]
-#betas = [b*-1 for b in betas]
+        #betas = [0, 0.125, 0.0005, 8, 4, 0.25, 2, 1.1, 1.75, 0.025, 0.175, 0.05, 0.5, 1.0, 0.15, 0.4, 0.225, 0.01, 0.1, 0.9, 0.0075, 0.075, 0.7, 0.3, 0.2, 1.5, 1.3]
+        betas = [0, 0.125, 0.25, 2, 1, 1.5, .025, .175, .15, 0.05, .5, .3, .225, .2, .01, .75, 1.25, 0.075, 4]
+
+
 mis = [50.0,65.0,80.0,95.0,110,0.58,1.32,2.97,3.57,4.9,6.09,8.14,10.02,11.75,13.18,15.55,17.14,19.56,22,25,28.19,35]
 
 if args.per_label is not None:
@@ -41,7 +41,6 @@ else:
 vary_together = True
 
 
-
 if args.params in ['beta', 'betas', 'b']:
 	params_used = beta_params # mi_params                                                                                                                                         
 elif args.params in ['mi', 'mis', 'm', 'constraint', 'constraints']:
@@ -49,6 +48,9 @@ elif args.params in ['mi', 'mis', 'm', 'constraint', 'constraints']:
 elif args.params in ['few_betas', 'small_beta']:
         params_used = beta_params
 
+if args.dmax is not None:
+        params_used["layers.5.layer_kwargs.d_max"] = list(args.dmax)
+        vary_together = False
 
 #params = {"activation.encoder": ["softplus", "sigmoid"]}                                                                                                                     
 if args.dataset == 'fmnist':
