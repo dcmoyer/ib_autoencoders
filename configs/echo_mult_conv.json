@@ -176,7 +176,7 @@
 	"losses":
 		[
 			{
-			"type": "ido",
+			"type": "echo",
 			"layer": -1, 
 			"encoder": true,
 			"weight": 1, 
