@@ -444,6 +444,7 @@ class NoiseModel(Model):
         means = np.mean(z, axis = 0)
         sigs = np.sqrt(np.var(z, axis = 0))
 
+        print("FILENAME ", self.filename)
         analysis.plot_traversals(examples, 
                         self._encoder(), 
                         self._decoder(),
@@ -452,8 +453,10 @@ class NoiseModel(Model):
                         means = means,
                         sigmas = sigs,
                         prefix = self.filename)
-
-        analysis.sample_echo_reconstruction(self.model, self.dataset, echo_batch = self.batch, echo_dmax = self.encoder_layers[-1].layer_kwargs['d_max'],
+        print('enc latent ind' , len(self._enc_latent_ind)-1)
+        print(' with total layers= ', len(self.layers))
+        print('layer ', self.layers[len(self._enc_latent_ind)-1])
+        analysis.sample_echo_reconstructions(self.model, self.dataset, echo_batch = self.batch, echo_dmax = self.layers[len(self._enc_latent_ind)-1]['layer_kwargs']['d_max'],
             prefix = self.filename)
 
         if self.encoder_dims[-1] == 2:
