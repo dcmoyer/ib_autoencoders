@@ -23,6 +23,10 @@ import pickle
 # if isinstance( data, Dataset):
 #   data = data.data
 #def rd_curve(hist, test = None, legend = None, prefix = ''):
+
+
+
+
 def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'bce', threshold = .001):
     recons = defaultdict(lambda: defaultdict(list))
     regs = defaultdict(lambda: defaultdict(list))
@@ -55,8 +59,8 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
                     add = -1 if len(param.split("additive")[0]) >= len(param.split("additive")[-1]) and len(param.split("additive")[-1])>1 else 0 #
                     param = fn.split(".pickle")[0].split("additive")[add].split("multiplicative")[mult].split("_")[-1]
                     
-                    if float(param) <= threshold and float(param) > 10**-6:
-                        continue
+                    #if float(param) <= threshold and float(param) > 10**-6:
+                    #    continue
 
                     param_inds[folder].append(param)
                     
@@ -91,37 +95,49 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
                                 
                         for loss in results.keys():
                             k = loss.split("/")[0]
-                            #print(loss)
+                            #print(loss, " len loss ", results[loss])
                             if 'test' not in loss:
+                                print(loss)
                                 if 'recon' in loss:
                                     recons[folder][k].append(results[loss][-1] if 'test' not in loss else results[loss])
                                     try:
                                         test_recons[folder][k].append(results[str('test_'+loss)])
                                     except:
                                         test_recons[folder][k].append(results[str('test_'+k+'_loss')])
-                                elif 'reg' in loss:
-                                    regs[folder][k].append(results[loss][-1] if 'test' not in loss else results[loss])
+                                elif 'reg' in loss or '__' in loss:
+                                    if '__' in loss:
+                                        key_loss = loss.split("_")
+                                        for i in range(len(key_loss)):
+                                            key_loss[i] = 'reg' if key_loss[i] == '' else key_loss[i]
+                                        key_loss = "_".join(key_loss)
+                                    else:
+                                        key_loss = k 
+                                    regs[folder][key_loss].append(results[loss][-1] if 'test' not in loss else results[loss])
                                     try:
-                                        test_regs[folder][k].append(results[str('test_'+loss)])
+                                        test_regs[folder][key_loss].append(results[str('test_'+loss)])
                                     except:
-                                        test_regs[folder][k].append(results[str('test_'+k+'_loss')])
+                                        test_regs[folder][key_loss].append(results[str('test_'+key_loss)])
 
                                 elif 'lagr' in loss:
                                     if 'test' in loss:
                                         warn('*** TEST LAGRANGIAN EXISTS **** for ', fn)
                                     lagrs[folder][k].append(results[loss][-1] if 'test' not in loss else results[loss])
                                     #test_lagrs[loss].append(results[str('test_'+loss)])
+                                elif loss != 'loss':
+                                    print("DOING NOTHING FOR ", loss, " with fn:  ", fn)
         #write files per folder 
         csv_str=''
         print("Params ", param_inds[folder], " len ", len(param_inds[folder]))
- 
+        #print("lengths ", [(k, len(regs[folder][k])) for k in regs[folder].keys()])
+        #print("lengths ", [(k, len(recons[folder][k])) for k in recons[folder].keys()])
         # rows = increasing param value
         for i in sorted(range(len(param_inds[folder])), key=lambda k: float(param_inds[folder][k])): #range(len(param_inds[folder])):
-            if ('echo' in folder and i >= len(regs[folder]['mi_echo_reg_loss'])) or ('made' in folder and i >= len(regs[folder]['made_reg_loss'])):
-                continue
-            if ('vae' in folder and i >= len(regs[folder]['vae_reg_loss'])):
-                continue
+            #if ('echo' in folder and i >= len(regs[folder]['mi_echo_reg_loss'])) or ('made' in folder and i >= len(regs[folder]['made_reg_loss'])):
+            #    continue
+            #if ('vae' in folder and i >= len(regs[folder]['vae_reg_loss'])):
+            #    continue
             # headers
+            
             if csv_str=='':
                 #print("len params ", len(param_inds[folder]))
                 csv_str = "{} \n".format(fn)
@@ -129,9 +145,10 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
                 for k in regs[folder].keys():
                     csv_str += "{} \t \t".format(k.split('_')[0]) #k.split('loss')[:-2]
                     #csv_str += "{} \t \t".format(k.split('_')[:-2]) #k.split('loss')[:-2]
+                    #print('regs ', [len(regs[folder][k]) for k in regs[folder].keys()])
                 for k in recons[folder].keys():
                     csv_str += "{} \t \t".format(k.split('_')[0]) 
-                    
+                    #print('rcons ', [len(recons[folder][k]) for k in recons[folder].keys()])
                 for k in regs[folder].keys():
                     csv_str += "test_{} \t \t".format(k.split('_')[0])
                 for k in recons[folder].keys():
@@ -146,7 +163,6 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
             csv_str += '{} \t \t'.format(param_inds[folder][i])
             # columns
             for k in regs[folder].keys():
-                print(k, ' : ', len(regs[folder][k]), ' i ', i)
                 csv_str += "{} \t \t".format(round(regs[folder][k][i],2))
             for k in recons[folder].keys():
                 csv_str += "{} \t \t".format(round(recons[folder][k][i],2))
@@ -166,64 +182,64 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
             #csv.write(param_inds[folder][i], regs[folder][k][i] for k in regs[folder].keys(), recons[folder][k][i] for k in recons[folder].keys())
 
         for reg in regs[folder].keys():
-            try:
-                for recon in recons[folder].keys():
-                    print("reg ", reg, " recon ", recon)
-                    if 'beta' in fn or beta:
-                        val, idx = min((val, idx) for (idx, val) in enumerate(param_inds[folder]))
-                    else: # constrainted optimization, maximal regularizer
-                        val, idx = max((val, idx) for (idx, val) in enumerate(param_inds[folder]))
+            
+            for recon in recons[folder].keys():
+                #print("reg ", reg, " recon ", recon)
+                if 'beta' in fn or beta:
+                    val, idx = min((val, idx) for (idx, val) in enumerate(param_inds[folder]))
+                else: # constrainted optimization, maximal regularizer
+                    val, idx = max((val, idx) for (idx, val) in enumerate(param_inds[folder]))
 
-                    #val, idx = min((val, idx) for (idx, val) in enumerate(recons[folder][recon]))
-                    #print('AE idx ', recon, ' : ', idx, ' , ', val, ' : test recon len ', len(test_recons[folder][recon]))
-                    #print('reg: ', reg, ' other keys: ', list(regs[folder].keys()))
-                    #print('regs len ', len(regs[folder][reg]), ' recons len ', len(recons[folder][recon]))
-                    
-                    plt.figure(figsize=(15,15))
-                    plt.title(str("Train/Test RD "+ folder.split('/')[-1]))
-                    plt.xlabel(reg)
-                    plt.ylabel(recon)
-                    # scatter except for minimum recon => dotted line
+                #val, idx = min((val, idx) for (idx, val) in enumerate(recons[folder][recon]))
+                #print('AE idx ', recon, ' : ', idx, ' , ', val, ' : test recon len ', len(test_recons[folder][recon]))
+                #print('reg: ', reg, ' other keys: ', list(regs[folder].keys()))
+                #print('regs len ', len(regs[folder][reg]), ' recons len ', len(recons[folder][recon]))
+                
+                plt.figure(figsize=(15,15))
+                plt.title(str("Train/Test RD "+ folder.split('/')[-1]))
+                plt.xlabel(reg)
+                plt.ylabel(recon)
+                # scatter except for minimum recon => dotted line
 
-                    try:
-                        plt.axhline(y= recons[folder][recon][idx], color = 'b', linestyle='-', label = str('train_AE (param '+ str(round(float(val),0))+')'))
-                        plt.axhline(y= test_recons[folder][recon][idx], color = 'r', linestyle='-', label= str('test_AE (param '+ str(round(float(val),0))+')'))
-                    except:
-                        plt.axhline(y= recons[folder][recon][idx], color = 'b', linestyle='-', label = 'train_AE')
-                        plt.axhline(y= test_recons[folder][recon][idx], color = 'r', linestyle='-', label= 'test_AE')
-                  
-                    plt.scatter([regs[folder][reg][i] for i in range(len(regs[folder][reg])) if i != idx], 
-                        [recons[folder][recon][i] for i in range(len(recons[folder][recon])) if i != idx])
-                    plt.scatter([test_regs[folder][reg][i] for i in range(len(test_regs[folder][reg])) if i != idx], 
-                        [test_recons[folder][recon][i] for i in range(len(test_recons[folder][recon])) if i != idx])
+                try:
+                    plt.axhline(y= recons[folder][recon][idx], color = 'b', linestyle='-', label = str('train_AE (param '+ str(round(float(val),0))+')'))
+                    plt.axhline(y= test_recons[folder][recon][idx], color = 'r', linestyle='-', label= str('test_AE (param '+ str(round(float(val),0))+')'))
+                except:
+                    plt.axhline(y= recons[folder][recon][idx], color = 'b', linestyle='-', label = 'train_AE')
+                    plt.axhline(y= test_recons[folder][recon][idx], color = 'r', linestyle='-', label= 'test_AE')
+              
+                plt.scatter([regs[folder][reg][i] for i in range(len(regs[folder][reg])) if i != idx], 
+                    [recons[folder][recon][i] for i in range(len(recons[folder][recon])) if i != idx])
+                plt.scatter([test_regs[folder][reg][i] for i in range(len(test_regs[folder][reg])) if i != idx], 
+                    [test_recons[folder][recon][i] for i in range(len(test_recons[folder][recon])) if i != idx])
 
-                    plt.legend()
-                    for i in sorted(range(len(param_inds[folder])), key=lambda k: float(param_inds[folder][k])):
-                        if i % 2 == 0:
-                            plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]-offset, recons[folder][recon][i]-offset), size = 'large')
-                    
+                plt.legend()
+                for i in sorted(range(len(param_inds[folder])), key=lambda k: float(param_inds[folder][k])):
+                    if i % 2 == 0:
+                        plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]-offset, recons[folder][recon][i]-offset), size = 'large')
+                
 
-                    plt.savefig(os.path.join(folder, str(*recon.split('loss')[:-1])+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
-                    plt.close()
+                plt.savefig(os.path.join(folder, str(*recon.split('loss')[:-1])+'_'+str(*reg.split('loss')[:-1])+'.pdf'))#, bbox_inches='tight')
+                plt.close()
 
-                for lagr in lagrs[folder].keys():
-                    plt.figure()
-                    plt.scatter(regs[folder][reg], lagrs[folder][lagr])
-                    #plt.scatter(test_regs[folder][reg], lagrs[])
-                    for i in range(len(regs[folder][reg])):
-                        plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]+offset, lagrs[folder][lagr][i]+offset))
-                    plt.savefig(os.path.join(folder, lagr+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
-                    plt.close()
-            except Exception as e:
-                print("FAILED: reg ", reg, " recon ", recon)
-                print(e)
+            for lagr in lagrs[folder].keys():
+                plt.figure()
+                plt.scatter(regs[folder][reg], lagrs[folder][lagr])
+                #plt.scatter(test_regs[folder][reg], lagrs[])
+                for i in range(len(regs[folder][reg])):
+                    plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]+offset, lagrs[folder][lagr][i]+offset))
+                plt.savefig(os.path.join(folder, lagr+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
+                plt.close()
+            #except Exception as e:
+            #    print("FAILED: reg ", reg, " recon ", recon)
+            #    print(e)
         #legend = param values
     for folder in folders:
         for reg in regs[folder].keys():
-            print('reg: ', reg, end = '')
+            #print('reg: ', reg, end = '')
             if not ('mi_' in reg or 'vae' in reg or 'ido' in reg):
                 continue
-            print("plotting ", reg)
+            #print("plotting ", reg)
             for recon in recons[folder].keys():
                 if recon_loss in recon and 'test' not in recon:
                     if folder == folders[0]:
@@ -343,6 +359,63 @@ def write_runs(recons, regs, lagrs = None, indices = None):
                     csv_str += "{} \t \t".format(round(lagrs[k][i]),3)
 
                 csv_str += "\n"
+
+
+def encoder(model, x = None, layer = None):#, echo_batch = None):
+    for i in model.layers:
+        print(i.name)
+        if layer is None or layer == 'z_act':
+            if 'z_act' in i.name or 'echo' in i.name:
+                final_latent = i.name
+                break
+        else:
+            if layer in i.name:
+                final_latent = i.name
+    #if echo_batch is None:
+    get_z = K.function([model.layers[0].get_input_at(0)], [
+                    model.get_layer(final_latent).get_output_at(0)])
+    #else:
+    #    get_z = K.function([self.model.layers[0].get_input_at(0)], [
+    #                    self.model.get_layer(final_latent).get_output_at(0)])
+    if x is not None:
+        print("GET Z LIST ", len(get_z([x])), get_z([x])[0].shape) 
+    return get_z if x is None else get_z([x])[0]
+
+def decoder(model, z = None):
+    for i in model.layers:
+        if 'z_act' in i.name or 'echo' in i.name:
+            final_latent = i.name
+            break
+
+    z_inp = Input(shape = (encoder_dims[-1],))
+    z_out = z_inp
+    call_ = False
+    for layr in model.layers:
+        # only call decoder layer_list
+        if call_ and not isinstance(layr, keras.layers.core.Lambda) and not isinstance(layr, MADE) and not isinstance(layr, MADE_network):#and not ('vae' in layr.name or 'noise' in layr.name or 'info_dropout' in layr.name):
+            z_out = layr(z_out)
+        if layr.name == final_latent:
+            call_ = True
+        # doesn't work with new naming convention
+        #if layr.name == 'decoder' or layr.name == 'ci_decoder':
+        #    call_ = False
+    generator = keras.models.Model(input = [z_inp], output = [z_out])
+    return generator if z is None else generator.predict(z) 
+
+def sample_echo_reconstructions(model, dataset, n = 5, num_samples = 5, echo_batch = None, echo_dmax = 50):
+    np.random.shuffle(dataset.x_test)
+    if echo_batch is not None:
+        samples = dataset.x_test[:n]
+    else:
+        samples = dataset.x_test[:echo_batch]
+        #samples = np.random.shuffle(dataset.x_test)[:echo_batch]
+    mean_function = model.encoder(samples, layer = 'z_mean')
+    echo_function = model.encoder(samples, layer = 'echo')
+    
+    mean_act = mean_function([samples])[0]
+    for i in range(num_samples):
+        echo_output = echo_function([mean_act])[0]
+
 
 
 def plot_traversals(dataset, encoder, generator, top_dims = [], top = 10, prefix = "", 

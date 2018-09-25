@@ -66,4 +66,4 @@ if args.constraint is not None:
 if args.beta is not None:
 	m.losses[0]['weight'] = args.beta
 	
-m.fit(d.x_train)
+m.fit(d.x_train, verbose = args.verbose)

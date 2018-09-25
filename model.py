@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import json
 from collections import defaultdict
 from keras import backend as K
-from layers import Beta, MADE, MADE_network
+from layers import Beta, MADE, MADE_network, IAF, Echo
 from keras.layers import Input, Dense, merge, Lambda, Flatten #Concatenate, 
 from keras.layers import Activation, BatchNormalization, Lambda, Reshape
 from keras.callbacks import Callback, TensorBoard, LearningRateScheduler
@@ -147,12 +147,18 @@ class NoiseModel(Model):
                 self.lr_callback = isinstance(self.lr, str)
                 self.lr = getattr(mod, self.lr)
             except:
-                #self.lr = dflt.get('lr', .001)
-                print()
-                warnings.warn("Cannot find LR Schedule function.  Proceeding with default, constant learning rate.")    
-                print()
+                try:
+                    mod = importlib.import_module(str('custom_functions.lr_sched'))
+                    # LR Callback will be True /// self.lr = function of epochs -> lr
+                    self.lr_callback = isinstance(self.lr, str)
+                    self.lr = getattr(mod, self.lr)
+                except:
+                    #self.lr = dflt.get('lr', .001)
+                    print()
+                    warnings.warn("Cannot find LR Schedule function.  Proceeding with default, constant learning rate.")    
+                    print()
         print()
-        print("**** LR CALLBACK *** ", self.lr_callback)
+        print("**** LR CALLBACK *** ", self.lr_callback, self.lr)
         print()
         # self.lr = args.get('lr', dflt.get('latent_dims', .001)) 
         # try:
@@ -348,7 +354,10 @@ class NoiseModel(Model):
                 self.losses.append(recon_loss)
 
     # TO DO : MAKE FIT AUTOMATICALLY READ DATASET
-    def fit(self, x_train, y_train = None, x_val = None, y_val = None):
+    def fit(self, x_train, y_train = None, x_val = None, y_val = None, verbose = None):
+        if verbose is not None:
+            self.verbose = verbose
+
         print("INPUT SHAPE ", self.input_shape)
         if self.input_shape is None:
             self.input_shape = (self.dataset.dims[0], self.dataset.dims[1], 1) if 'Conv' in self.layers[0]['type'] else (self.dataset.dim,)
@@ -652,7 +661,9 @@ class NoiseModel(Model):
                 try:
                     for j in range(len(outputs)):
                         #outputs[j] = Flatten()(outputs[j]) #
-                        #outputs[j] = Reshape([-1, *outputs[j]._keras_shape[1:]])(outputs[j]) if len(K.int_shape(outputs[j])) > 2 else outputs[j]
+                        #try:
+                            #outputs[j] = Reshape([-1, *outputs[j]._keras_shape[1:]])(outputs[j]) if len(K.int_shape(outputs[j])) > 2 else outputs[j]
+                        #except:
                         outputs[j] = Flatten()(outputs[j]) if len(K.int_shape(outputs[j])) > 2 else outputs[j]
                         #outputs[j] = tf.reshape(outputs[j], [-1, K.int_shape(outputs[j])[-1]]) if len(K.int_shape(outputs[j])) > 2 else outputs[j]
                 except Exception as e:
@@ -858,7 +869,7 @@ class NoiseModel(Model):
                 else:   
                     layers_list = self.encoder_layers if encoder else self.decoder_layers
                     layers_list.append(defaultdict(list))
-                    print('layer size ', layer.latent_dim, ' type ', layer.type,  ' kw args: ', layer.layer_kwargs)
+                    #print('layer size ', layer.latent_dim, ' type ', layer.type,  ' kw args: ', layer.layer_kwargs)
                     # each function holds is a dictionary with 'stat' and 'act' (each of length k, with stats items [z_mean, z_var])
                     functions = layer.make_function_list(index = layer_ind)
 
@@ -909,7 +920,7 @@ class NoiseModel(Model):
                     except:
                         layers_list[-1]['act'].append(act)
                         print("ACTIVATION TYPE ", act, type(act))
-                        if isinstance(act, layers.IAF):
+                        if isinstance(act, IAF):
                             current_call = layers_list[-1]['act']
                         # ADDED FOR MADE, which doesn't call on activation layer?
                 
@@ -923,6 +934,8 @@ class NoiseModel(Model):
                     if isinstance(current_call, list):
                         print("current is a list")
                         current = current_call[k] if len(current_call) > 1 else current_call[0]
+                    else:
+                        current = [current]
                     print("calling on input: ", current)
                     a = addl_lyr(current)
                     print("done calling")

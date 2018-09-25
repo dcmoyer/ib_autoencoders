@@ -34,8 +34,33 @@ class Layer(object):
         for key in args.keys():
             setattr(self, key, args[key])
 
+        self.try_activations()
+
     def equals(self, other_args):
         return self.__eq__(other_args)
+
+    def try_activations(self, kw = False):
+        try:
+            act = self.layer_kwargs['activation'] if kw else self.activation
+            actstr = str(act)
+        
+            mod = importlib.import_module('keras.activations')
+            act = getattr(mod, actstr)
+        except:
+            try:
+                print()
+                print("***")
+                print("Trying split import ", ".".join(actstr.split(".")[:-1]), actstr.split(".")[-1])
+                print("***")
+                mod = importlib.import_module(".".join(actstr.split(".")[:-1]))
+                act = getattr(mod, actstr.split(".")[-1])
+            except:
+                #print("Couldn't import ", actstr.split(".")[-1])
+                pass
+
+        if not self.layer_kwargs.get('activation', True):
+            self.layer_kwargs['activation'] = act
+        
 
     def make_function_list(self, index = 0):
         stats_list = []
@@ -114,31 +139,20 @@ class Layer(object):
 
             elif self.type in ['iaf', 'inverse_flow']:
                 z_mean = Dense(self.latent_dim, activation='linear',
-                               name='z_mean'+name_suffix)#**self.layer_kwargs)
+                              name='z_mean'+name_suffix)#**self.layer_kwargs)
                 z_logvar = Dense(self.latent_dim, activation='linear',
-                               name='z_var'+name_suffix)# **self.layer_kwargs)            
+                              name='z_var'+name_suffix)# **self.layer_kwargs)            
                 stats_list.append([z_mean, z_logvar])
 
-                try:
-                    mod = importlib.import_module('keras.activations')
-                    self.layer_kwargs['activation'] = getattr(mod, self.layer_kwargs['activation'])
-                except:
-                    pass
-                #self.layer_kwargs['name'] = 'iaf'+name_suffix
-                #iaf = Lambda(layers.tf_inverse_flow, arguments = self.layer_kwargs)
-                # iaf = layers.tf_inverse_flow(steps = self.layer_kwargs.get('steps', 1),
-                #             layers = self.layer_kwargs.get('layers', 1),
-                #             mean_only = self.layer_kwargs.get('mean_only', 1),
-                #             activation = self.layer_kwargs.get('activation', 'relu'),
-                #             name = 'iaf'+name_suffix)
+                
+                self.try_activations(kw = True)
+                    
 
-                # NOT CURRENTLY WORKING == make it a LAYER!!!!
-                # SAMPLE BIJECTOR : input = bijector, execute sample op
                 iaf = layers.IAF(name = 'z_act'+name_suffix,
                     **self.layer_kwargs)
                 iaf_density = Lambda(iaf.get_density, name = 'iaf_conditional'+name_suffix)
-                #print('*** CONSTANT JACOBIAN ???? ***', iaf.is_constant_jacobian)
-                #logdetjac = Lambda(iaf.inverse_log_det_jacobian, arguments = {"event_n_dims": 2}, name = 'iaf_jac'+name_suffix)
+                #print('*** CONSTANT JACOBIAN IAF ???? ***', iaf.is_constant_jacobian)
+                
                 act_list.append(iaf)
                 addl_list.append(iaf_density) # doesn't matter what it calls?  sample to be safe
 
@@ -150,11 +164,7 @@ class Layer(object):
                     # args['mean_only'] = self.layer_kwargs.get('mean_only', 1)
                     # args['activation'] = self.layer_kwargs.get('activation', 'relu')
                     self.layer_kwargs['name'] = 'maf_density'+name_suffix
-                    try:
-                        mod = importlib.import_module('keras.activations')
-                        self.layer_kwargs['activation'] = getattr(mod, self.layer_kwargs['activation'])
-                    except:
-                        pass
+                    self.try_activations(kw = True)
                           
                     reshape = Reshape((self.latent_dim,), name = 'conv_reshape'+name_suffix)
 
@@ -163,6 +173,7 @@ class Layer(object):
                     #   z_mean = Reshape([-1, dim])(z_mean) 
                         #z_mean = Reshape([-1, *z_mean._keras_shape[1:]])(z_mean) 
                         #z_mean = Flatten()(z_mean)
+                    
                     maf = Lambda(layers.tf_masked_flow, arguments = self.layer_kwargs, name = 'masked_flow'+name_suffix)
                     stats_list.append([reshape])
                     act_list.append(maf)
@@ -181,8 +192,7 @@ class Layer(object):
             else:
                 # import layer module by string (can be specified either in activation or layer_kwargs)
                 try:
-                    if self.activation is None and self.layer_kwargs.get('activation', False):
-                        self.activation = self.layer_kwargs['activation']
+                    #self.try_activations()
                     spl = str(self.activation).split('.')
                     if len(spl) > 1:
                         path = '.'.join(spl[:-1])
@@ -192,8 +202,19 @@ class Layer(object):
                     else:
                         if not self.layer_kwargs.get('activation', True):
                             self.layer_kwargs['activation'] = self.activation
-                except:
-                    raise NotImplementedError("Coding error in importing activation.  Specify as Keras activation str or module.function")
+                except Exception as e:
+                    print()
+                    print("trying activationfor layer ", self.type)
+                    print(e) #raise NotImplementedError("Coding error in importing activation.  Specify as Keras activation str or module.function")
+                    print()
+
+                try:
+                    self.try_activations(kw = True)
+                except Exception as e:
+                    print()
+                    print("trying layer kw activation for ", self.type)
+                    print(e) #raise NotImplementedError("Coding error in importing activation.  Specify as Keras activation str or module.function")
+                    print()
 
                 try:
                     spl = str(self.type).split('.')
@@ -215,7 +236,7 @@ class Layer(object):
                             z_act = z_act(self.latent_dim, **self.layer_kwargs)
                             
                 except:
-                    raise AttributeError("Cannot import layer module.  Set 'type' to 'add', 'mul', or import path.")
+                    raise AttributeError("Error Importing Activation ", self.type)
                 act_list.append(z_act)
        
         return {'stat': stats_list, 'act': act_list, 'addl': addl_list}
@@ -223,6 +244,8 @@ class Layer(object):
             #     return [stats_list, act_list]
             # else:
             #     return [act_list]
+
+
 
 def default_noise_layer(str_name, latent_dim):
     k = 1

@@ -11,11 +11,18 @@ def iwae_lr_sched(epoch):
     print(epoch, ': lr = ', lr)
     return lr
 
+def alemi_400(epoch):
+    if epoch <= 200:
+        lr = .0003
+    else:
+        lr = 0.0003*(1-(400-epoch)/200)
+    return lr
+
 def alemi_lr_sched(epoch):
     if epoch <= 100:
         lr = .0003
     else:
-        lr = .0003*(1-(epoch-100)/100)
+        lr = .0003*(1-(200-epoch)/100)
     return lr
 
 # old version of learning rate schedule... 

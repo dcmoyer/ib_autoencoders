@@ -73,7 +73,7 @@ class Loss(object):
         return self._get_loss_weight()
 
     def _type_to_function(self):
-        #name_suffix = '_'+str(self.layer) if self.layer != -1 else ('_z' if self.encoder else '')
+        # NOTE : MESSES THINGS UP FOR 0 PARAM VALUE.... implement metrics instead of 0 weight?
         name_suffix = '_'+('recon' if self.type in RECON_LOSSES else ('reg' if self.weight != 0 else ''))+('_'+str(self.layer) if self.layer != -1 else '')
         print("SELF.TYPE ", self.type, type(self.type))
         self.from_addl = []
@@ -193,13 +193,13 @@ class Loss(object):
 
         elif self.type in ['iaf', 'iaf_encoder', 'iaf_conditional', 'iaf_density']:
             self.from_layer = ['addl']
-            return Lambda(l.dim_sum_one, arguments = {"keepdims": True}, name = 'iaf'+name_suffix)
+            return Lambda(l.mean_one, arguments = {"keepdims": True}, name = 'iaf'+name_suffix)
 
         elif self.type in ['made_density', 'made_marginal']:
             prev_made = False
             if not prev_made:
                 self.from_layer = ['act'] #arguments = {"keepdims":True}
-                return Lambda(l.dim_sum_one, arguments = {"keepdims": True}, name = 'made'+name_suffix)
+                return Lambda(l.mean_one, arguments = {"keepdims":True}, name = 'made'+name_suffix)
                 #return Lambda(l.identity_one, name = 'made'+name_suffix)
             else:
                 # default is gaussian_inputs (i.e. sample isotropic gauss, transform into mean / mean + std of gaussian)

@@ -143,12 +143,17 @@ def my_predict(model, data, layer_name, multiple = True):
                         [model.get_layer(layer_name).get_output_at(0)])
         return func([data])[0]
 
-def transformed_log_prob(dist, x):
+def positive_log_prob(dist, x):
   #, event_ndims=0
   return (dist.bijector.inverse_log_det_jacobian(x, 0) +
           dist.distribution.log_prob(dist.bijector.inverse(x)))
 
-def tf_masked_flow(inputs, steps = None, layers = None, inverse = False, mean_only = True, activation = activations.relu, name = 'maf'):
+def negative_log_prob(dist, x):
+  #, event_ndims=0
+  return -(dist.bijector.inverse_log_det_jacobian(x, 0) +
+          dist.distribution.log_prob(dist.bijector.inverse(x)))
+
+def tf_masked_flow(inputs, steps = None, layers = None, mean_only = True, activation = None, name = 'maf'):
   if isinstance(inputs, list):
     z_mean = inputs[0]
   else:
@@ -160,7 +165,6 @@ def tf_masked_flow(inputs, steps = None, layers = None, inverse = False, mean_on
     layers = [dim]*steps
   steps = steps if steps is not None else 1
 
- 
   # if inverse:
   #   iaf = tfd.TransformedDistribution(
   #       distribution=tfd.Normal(loc=z_mean, scale=z_std),
@@ -170,53 +174,60 @@ def tf_masked_flow(inputs, steps = None, layers = None, inverse = False, mean_on
   #       event_shape=[dim])
   # else:
   #for step in steps:
-  
+  layers = tuple(layers)
+  print("Input ", z_mean)
   maf_chain = list(itertools.chain.from_iterable([
           tfb.MaskedAutoregressiveFlow(
             shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
-            hidden_layers = layers, shift_only = mean_only, activation = activation, name = name+str(i))),
-          tfb.Permute(list(reversed(range(dim))))] 
+            hidden_layers = layers, shift_only = mean_only, name = name+str(i)))
+            #, **{"kernel_initializer": tf._initializer()}))
+          ,tfb.Permute(list(reversed(range(dim))))]  #np.random.permutation(dim)
           for i in range(steps)))
-
+  print("maf chain ", maf_chain)
   #tfd.Normal(loc=0.0, scale=1.0),
   maf = tfd.TransformedDistribution(
     distribution= tfd.MultivariateNormalDiag(
-    loc=tf.zeros([dim])),
-    bijector=tfb.Chain(maf_chain[:-1]))
-  
+      loc=tf.zeros([dim]), allow_nan_stats = False),
+    bijector=tfb.Chain(maf_chain[:-1])
+    #, validate_args = True)
+    )
+  print()
+  print("TRANSFORMED PROB SHAPE ", negative_log_prob(maf, z_mean))
+  print()
   # maf = tfd.TransformedDistribution(
   #   distribution=tfd.Normal(loc=0.0, scale=1.0),
   #   bijector=tfb.MaskedAutoregressiveFlow(
   #       shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
   #           hidden_layers=layers, shift_only=mean_only), activation = activation), name = name+step)
 
-  return transformed_log_prob(maf, z_mean)
+  return K.expand_dims(negative_log_prob(maf, z_mean), 1)
   #transformed_log_prob(maf, z_mean)
   #return maf.bijector.log_prob(z_mean)
 
 
 
-def tf_inverse_flow(inputs, steps = None, layers = None, mean_only = True, activation = activations.relu, name = None):
-  z_mean, z_logvar = inputs
+# def tf_inverse_flow(inputs, steps = None, layers = None, mean_only = True, name = None):
+#   z_mean, z_logvar = inputs
 
-  dim = K.int_shape(z_mean)[-1]
-  if steps is not None and layers is None:
-    layers = [dim]*steps
+#   dim = K.int_shape(z_mean)[-1]
+#   if steps is not None and layers is None:
+#     layers = [dim]*steps
 
-  if name is None:
-    name = 'iaf'
+#   if name is None:
+#     name = 'iaf'
 
-  iaf = tfd.TransformedDistribution(
-      distribution= tfd.MultivariateNormalDiag(loc = z_mean,  
-        scale_diag =tf.exp(.5*z_logvar)),
-      bijector=tfb.Invert(tfb.MaskedAutoregressiveFlow(
-          shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
-              hidden_layers= layers, shift_only= mean_only))),  name = name,
-      event_shape=[dim])
+#   # uses relu as default
+#   iaf = tfd.TransformedDistribution(
+#       distribution= tfd.MultivariateNormalDiag(loc = z_mean,  
+#         scale_diag =tf.exp(.5*z_logvar)),
+#       bijector=tfb.Invert(tfb.MaskedAutoregressiveFlow(
+#           shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
+#               hidden_layers= layers, shift_only= mean_only))),  name = name,
+#       event_shape=[dim])
 
-  #iaf.sample()
-  #iaf.log_prob(sample)
-  return iaf
+#   #iaf.sample()
+#   #iaf.log_prob(sample)
+#   return iaf
 
 
 
@@ -329,23 +340,30 @@ class IAF(Layer):
       mod = importlib.import_module('keras.activations')
       self.activation = getattr(mod, self.activation)
     except:
-      self.activation = activation
+      try:
+        mod = importlib.import_module(self.activation)
+        self.activation = getattr(mod, self.activation.split(".")[-1])
+      except:
+        self.activation = activation
     
     super(IAF, self).__init__(**kwargs)
 
   def build(self, input_shape):
     # input shape is list of [z_mean, z_std]
-    self.dim = input_shape[0][-1]
+    if isinstance(input_shape, list):
+      self.dim = input_shape[0][-1]
+    else:
+      self.dim = input_shape[-1]
+
     if self.layers is None:
       self.layers = [self.dim, self.dim, self.dim]
 
-    print("DIM ", self.dim)
-    print("Steps ", self.steps, range(self.steps))
     iaf_chain = list(itertools.chain.from_iterable([
       tfb.Invert(tfb.MaskedAutoregressiveFlow(
           shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
               hidden_layers=self.layers, shift_only=self.mean_only, name = self.name+str(i)))),
-      tfb.Permute(list(reversed(range(self.dim))))] 
+              #**{"kernel_initializer": tf.ones_initializer()}))),
+      tfb.Permute(list(reversed(range(self.dim))))] #)
             for i in range(self.steps)))
 
     self.bijector = tfb.Chain(iaf_chain[:-1]) 
@@ -372,21 +390,30 @@ class IAF(Layer):
     
   def call(self, inputs):
     z_mean, z_logvar = inputs
+    print("input shape ", z_mean.get_shape().as_list())
     self.iaf =  tfd.TransformedDistribution(
-        distribution= tfd.MultivariateNormalDiag(loc = z_mean,  
-        scale_diag =tf.exp(.5*z_logvar)),
+        distribution = tfd.MultivariateNormalDiag(loc = z_mean,  
+        scale_diag = tf.exp(.5*z_logvar)),
         bijector = self.bijector)
     
     last_samples = self.iaf.sample()
+    print('sample size ', last_samples.get_shape().as_list() )
     self.density = self.iaf.log_prob(last_samples)
-    return last_samples
+    print('density size ', self.density.get_shape().as_list() )
+    try:
+      #self.density = self.iaf.log_prob(last_samples)
+      self.density = K.squeeze(K.squeeze(self.iaf.log_prob(last_samples), 1),1)
+    except:
+      self.density = self.iaf.log_prob(last_samples)
+    print('density size ', self.density.get_shape().as_list() )
+    return (last_samples)
 
-  def get_density(self):
-    return self.density 
+  def get_density(self, x):
+    return K.expand_dims(self.density, 1) 
 
   def compute_output_shape(self, input_shape):
     # CHECK THIS, PROBABLY NOT GENERAL
-    return input_shape
+    return input_shape[0]
 
   def get_log_det_jac(self, x):
     return self.iaf.inverse_log_det_jacobian(x, 0)
@@ -515,6 +542,7 @@ class MADE_network(Layer):
       # e.g. x = target z 
       for i in range(self.steps):
         m, s = self.made_layers[i]['stat']
+        print(m,s)
         self.made_tensors[i]['stat'] = [m(x), s(x)]
         self.made_tensors[i]['act'] = self.made_layers[i]['act']([x, *self.made_tensors[i]['stat']])
         x = self.made_tensors[i]['act'] 

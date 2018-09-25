@@ -4,9 +4,9 @@ import itertools
 from utils import make_dir
 import os
 import copy
-import model
+#import model
 import subprocess
-import analysis
+#import analysis
 #from tensorflow import reset_default_graph
 
 def nested_dict(d, keys, value):

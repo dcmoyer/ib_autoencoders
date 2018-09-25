@@ -22,19 +22,29 @@ folders = [
 folders = [str('results/' + f) for f in folders]
 #for folder in folders:
 #    analysis.rd_curve(folder, beta = 'beta' in folder)
-f = ['results/vae_alemiLR_binary_mnist', 'results/vae100batch_binary_mnist']
-#f = ['results/vae_check_smalltrain_binary_mnist', 'results/echo2add_smalltrain_binary_mnist', 'results/echo_add_smalltrain_Init_binary_mnist']#results/echo_add_smalltrain_Init_binary_mnist']#, 'results/alemi_test_vae_binary_mnist']
-analysis.rd_curve(f, beta = True, name = 'checking')# f[0].split('/')[-1])
 
-f = ['results/made_fmnist_fmnist', 'results/vae_fmnist_fmnist', 'results/echo_fmnist_fmnist']#,'results/echo_alemi_-.5init_binary_mnist']
-analysis.rd_curve(f, beta = True, name = 'fmnist')#f[0].split('/')[-1], threshold = .00001)
+#f = ['results/echoA_small1250_binary_mnist', 'results/echo_mult_small1250_binary_mnist']#, 'results/made_small1250_binary_mnist']
+#analysis.rd_curve(f, beta = True, name = 'add vs mult 200')#f[0].split('/')[-1], threshold = .00001)
+
+
+f = ['results/ido_small1250_binary_mnist', 'results/vae_small1250_binary_mnist',  'results/echoA_small1250_binary_mnist']#, 'results/made_small1250_binary_mnist']
+#f = ['results/vae_check_smalltrain_binary_mnist', 'results/echo2add_smalltrain_binary_mnist', 'results/echo_add_smalltrain_Init_binary_mnist']#results/echo_add_smalltrain_Init_binary_mnist']#, 'results/alemi_test_vae_binary_mnist']
+analysis.rd_curve(f, beta = True, name = '1250+ido')
+
+
+
+
+#f = [, 'results/']
+
+f = ['results/vae_gated_full_fmnist', 'results/echoAdd_gated_full_fmnist']
+analysis.rd_curve(f, beta = True, name = 'gated_full_fmnist')
 
 #f = ['results/echoCONV-smalltrain_binary_mnist', 'results/vaeCONV-smalltrain_binary_mnist']#,'results/echo_alemi_-.5init_binary_mnist']
 #analysis.rd_curve(f, beta = True, name = 'conv_smalltrain')
 
 
-f = ['results/echo001_conv_smalltrain_fmnist', 'results/vae001_conv_smalltrain_fmnist']
-analysis.rd_curve(f, beta = True, name = 'fmnist_smalltrain')
+#f = ['results/echo001_conv_smalltrain_fmnist', 'results/vae001_conv_smalltrain_fmnist']
+#analysis.rd_curve(f, beta = True, name = 'fmnist_smalltrain')
 #f = ['results/echo0init_smalltrain_binary_mnist', 'results/echo2add_smalltrain_binary_mnist', 'results/echo-2corrected_binary_mnist']#, 'results/alemi_test_vae_binary_mnist']
 #analysis.rd_curve(f, beta = True, name = f[0].split('/')[-1], threshold = 0.000001)
 

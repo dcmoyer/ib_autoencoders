@@ -23,8 +23,11 @@ def dim_sum(true, tensor, keepdims = False):
 
 def dim_sum_one(tensor, keepdims = False):
     #print('DIMSUM TRUE ', _true)
-    #print('DIMSUM Tensor ', tensor)
     return K.sum(tensor, axis = -1, keepdims = keepdims)
+    #a = K.mean(tensor, axis = 0, keepdims = keepdims)
+    #return a
+def mean_one(tensor, keepdims = False):
+    return K.mean(tensor, axis = 0, keepdims = keepdims)
 
 def identity(true, tensor):
     return tensor
@@ -521,16 +524,23 @@ def beta_gradient_old(inputs, recon = 'bce', lognormal = False, prior = gaussian
 
 
 
-
-
-
 def gaussian_entropy(inputs):#logvar = 0.0):
     '''calculates (conditional) entropy per sample, with logvar summed over dimensions '''
     if not isinstance(inputs, list) or len(inputs) == 1:
         logvar = inputs
     else:
         [mu, logvar] = inputs
-    return .5*(np.log(2*np.pi)+1+K.sum(logvar, axis = -1, keepdims = True))
+    return .5*(K.int_shape(logvar)[-1]*np.log(2*np.pi*np.exp(1))+K.sum(logvar, axis = -1, keepdims = True))
+
+
+
+def gaussian_neg_ent(inputs):#logvar = 0.0):
+    '''calculates (conditional) entropy per sample, with logvar summed over dimensions '''
+    if not isinstance(inputs, list) or len(inputs) == 1:
+        logvar = inputs
+    else:
+        [mu, logvar] = inputs
+    return -.5*(K.int_shape(logvar)[-1]*np.log(2*np.pi*np.exp(1))+K.sum(logvar, axis = -1, keepdims = True))
 
 def lognormal_entropy(inputs):#mean, logvar):
     [mu, logvar] = inputs
