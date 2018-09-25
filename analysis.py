@@ -10,7 +10,9 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm
 from scipy.ndimage import imread
 from keras import backend as K
+from keras.layers import Input, Lambda
 from keras.models import Model as KerasModel
+from layers import IAF, MADE_network
 #from dataset import Dataset
 import tensorflow as tf
 import pandas as pd
@@ -19,6 +21,7 @@ from sklearn.cross_validation import cross_val_score
 from scipy.special import entr
 from collections import defaultdict
 import pickle
+from dataset import Dataset
 
 # if isinstance( data, Dataset):
 #   data = data.data
@@ -363,7 +366,6 @@ def write_runs(recons, regs, lagrs = None, indices = None):
 
 def encoder(model, x = None, layer = None):#, echo_batch = None):
     for i in model.layers:
-        print(i.name)
         if layer is None or layer == 'z_act':
             if 'z_act' in i.name or 'echo' in i.name:
                 final_latent = i.name
@@ -371,51 +373,70 @@ def encoder(model, x = None, layer = None):#, echo_batch = None):
         else:
             if layer in i.name:
                 final_latent = i.name
+                break
     #if echo_batch is None:
-    get_z = K.function([model.layers[0].get_input_at(0)], [
+    if 'echo' not in layer:
+        get_z = K.function([model.layers[0].get_input_at(0)], [
+                    model.get_layer(final_latent).get_output_at(0)])
+    else:
+        get_z = K.function([model.get_layer(final_latent).get_input_at(0)], [
                     model.get_layer(final_latent).get_output_at(0)])
     #else:
     #    get_z = K.function([self.model.layers[0].get_input_at(0)], [
     #                    self.model.get_layer(final_latent).get_output_at(0)])
-    if x is not None:
-        print("GET Z LIST ", len(get_z([x])), get_z([x])[0].shape) 
+    #if x is not None:
+        #print("GET Z LIST ", final_latent, " ", len(get_z([x])), get_z([x])[0].shape) 
     return get_z if x is None else get_z([x])[0]
 
 def decoder(model, z = None):
     for i in model.layers:
         if 'z_act' in i.name or 'echo' in i.name:
             final_latent = i.name
-            break
+            encoder_dim = i.get_output_shape_at(0)[-1]
+            if 'echo' in i.name:
+                break
 
-    z_inp = Input(shape = (encoder_dims[-1],))
+    z_inp = Input(shape = (encoder_dim,))
     z_out = z_inp
     call_ = False
     for layr in model.layers:
         # only call decoder layer_list
-        if call_ and not isinstance(layr, keras.layers.core.Lambda) and not isinstance(layr, MADE) and not isinstance(layr, MADE_network):#and not ('vae' in layr.name or 'noise' in layr.name or 'info_dropout' in layr.name):
+        if call_ and not isinstance(layr, Lambda) and not isinstance(layr, IAF) and not isinstance(layr, MADE_network):#and not ('vae' in layr.name or 'noise' in layr.name or 'info_dropout' in layr.name):
             z_out = layr(z_out)
         if layr.name == final_latent:
             call_ = True
         # doesn't work with new naming convention
         #if layr.name == 'decoder' or layr.name == 'ci_decoder':
         #    call_ = False
-    generator = keras.models.Model(input = [z_inp], output = [z_out])
+    generator = KerasModel(input = [z_inp], output = [z_out])
     return generator if z is None else generator.predict(z) 
 
-def sample_echo_reconstructions(model, dataset, n = 5, num_samples = 5, echo_batch = None, echo_dmax = 50):
+def sample_echo_reconstructions(model, dataset, n = 10, num_samples = 5, echo_batch = None, echo_dmax = 50, prefix = None):
+    if prefix is None:
+        prefix = 'results/'+dataset.name+'_echo'+str(echo_dmax)+str(n)
     np.random.shuffle(dataset.x_test)
-    if echo_batch is not None:
+    if echo_batch is None:
         samples = dataset.x_test[:n]
     else:
         samples = dataset.x_test[:echo_batch]
-        #samples = np.random.shuffle(dataset.x_test)[:echo_batch]
-    mean_function = model.encoder(samples, layer = 'z_mean')
-    echo_function = model.encoder(samples, layer = 'echo')
     
-    mean_act = mean_function([samples])[0]
+    
+    
+        #samples = np.random.shuffle(dataset.x_test)[:echo_batch]
+    mean_act = encoder(model, samples, layer = 'z_mean')
+    echo_function = encoder(model, layer = 'echo')
+    
+    generator = decoder(model)
+    
+    #mean_act = mean_function([samples])[0]
+    
+    
     for i in range(num_samples):
         echo_output = echo_function([mean_act])[0]
-
+        print("echo shape ",echo_output.shape)
+        recon = generator.predict(echo_output)
+        print("recon ", recon.shape)
+        vis_reconstruction(recon[:n,:], samples, prefix = prefix+'_'+str(i), dims = dataset.dims)
 
 
 def plot_traversals(dataset, encoder, generator, top_dims = [], top = 10, prefix = "", 
@@ -490,6 +511,7 @@ def plot_traversals(dataset, encoder, generator, top_dims = [], top = 10, prefix
                 k = 0
             image = traversal_data[i, :].reshape(
                 digit_dims[0], digit_dims[1])
+            #print(image[9:20, 9:20])
             figure[row * digit_dims[0]: (row+1) * digit_dims[0], 
                 k * digit_dims[1]: (k+1) * digit_dims[1]] = image
             k = k+1
@@ -536,37 +558,45 @@ def get_activation_stats(encoder, data, chunk_batch = 10000):
     return means, sigmas
 
 
-def vis_reconstruction(model, data, prefix='', noise=None, n=5, batch = 100, num_losses=1):
+def vis_reconstruction(inp, data, model = None, prefix='', noise=None, n=5, batch = 100, num_losses=1, dims = []):
     # print "==> visualizing reconstructions, prefix = {}".format(prefix)
-    if isinstance(dataset, Dataset):
-        digit_dims = dataset.digit_dims 
+    if isinstance(data, Dataset):
+        digit_dims = data.digit_dims 
     else:
         dim_sqrt = int(np.sqrt(data.shape[-1]))
         if (dim_sqrt +.5)**2 == data.shape[-1]: # hacky int sqrt check
             digit_dims = [dim_sqrt, dim_sqrt]
         else:
-            raise ValueError("Specify dim1, dim2 in a Dataset object and feed as argument.")
+            if dims:
+                digit_dims = dims
+            else:
+                raise ValueError("Specify dim1, dim2 in a Dataset object and feed as argument.")
 
     figure = np.ones((digit_dims[0] * 3, (digit_dims[1]+1) * n))
 
     # print 'DATA SHAPE.... ', data.shape
-    data_dim = data.shape[1]
+    try:
+        data_dim = data.shape[1]
+    except:
+        data_dim = data.dim
     # if merged:
     #    dummy = Model(input = model.input, output = model.output[:-1, :data_dim])
     #    xbars = dummy.predict(data)
-
-    if noise is None:
-        #inp = [data]*num_losses if num_losses > 1 else data
-        #xbars = my_predict(model, inp, 'decoder')
-        xbars = model.predict(inp, batch_size = batch)
-
+    if model is None:
+        xbars = inp
     else:
-        data_noise = noise(data)
-        inp = [data_noise]*num_losses if num_losses > 1 else data_noise
-        if batch is not None:
+        if noise is None:
+            #inp = [data]*num_losses if num_losses > 1 else data
+            #xbars = my_predict(model, inp, 'decoder')
             xbars = model.predict(inp, batch_size = batch)
+
         else:
-            xbars = model.predict(inp)
+            data_noise = noise(data)
+            inp = [data_noise]*num_losses if num_losses > 1 else data_noise
+            if batch is not None:
+                xbars = model.predict(inp, batch_size = batch)
+            else:
+                xbars = model.predict(inp)
 
     if isinstance(xbars, list) and len(xbars) > 1:
         i = 0

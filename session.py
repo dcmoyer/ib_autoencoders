@@ -152,14 +152,18 @@ class Session(object):
         
         #self.folder = config.split('.')[:-1]
         #make_dir(self.folder)
+
         try:
             with open(os.path.join(os.getcwd(), config)) as conf:
                 config_dict = json.load(conf)
         except:
             with open(os.path.join(os.getcwd(), 'configs', config)) as conf:
                 config_dict = json.load(conf)
+
         #with open(os.path.join(os.getcwd(), config)) as conf:
         #    config_dict = json.load(conf)
+
+
 
         #self.model_args = self._parse_config(config_dict)
         #print(model_args)

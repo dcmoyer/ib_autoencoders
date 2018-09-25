@@ -29,6 +29,23 @@ from callbacks import BetaCallback
 K.set_image_dim_ordering('tf')
 RECON_LOSSES = ['bce', 'mse', 'binary_crossentropy', 'mean_square_error', 'mean_squared_error', 'iwae']
 
+def load_model(filename):
+        try:
+            model = model_from_json(open(filename).read())
+        except:
+            print('Error reading file: {0}. Cannot load previous model'.format(filename))
+            exit()
+        return model
+
+def load_weights(model, filename):
+    try:
+        #model()
+        self = model.load_weights(filename+'_model')
+    except:
+        print('Error reading file: {0}. Cannot load previous weights'.format(filename))
+        exit()
+
+
 class Model(object):
     def __init__(self, dataset, *args, **kwargs):
         hyper_params.update(kwargs)
@@ -427,6 +444,7 @@ class NoiseModel(Model):
         means = np.mean(z, axis = 0)
         sigs = np.sqrt(np.var(z, axis = 0))
 
+        print("FILENAME ", self.filename)
         analysis.plot_traversals(examples, 
                         self._encoder(), 
                         self._decoder(),
@@ -435,6 +453,11 @@ class NoiseModel(Model):
                         means = means,
                         sigmas = sigs,
                         prefix = self.filename)
+        print('enc latent ind' , len(self._enc_latent_ind)-1)
+        print(' with total layers= ', len(self.layers))
+        print('layer ', self.layers[len(self._enc_latent_ind)-1])
+        analysis.sample_echo_reconstructions(self.model, self.dataset, echo_batch = self.batch, echo_dmax = self.layers[len(self._enc_latent_ind)-1]['layer_kwargs']['d_max'],
+            prefix = self.filename)
 
         if self.encoder_dims[-1] == 2:
             analysis.manifold(z, x_pred, per_dim = 50, dims = self.dataset.dims, location = 'results/'+self.filename)
@@ -1191,23 +1214,6 @@ class NoiseModel(Model):
 
     def get_loss_history(self):
         pass
-
-    def load_model(self, filename):
-        try:
-            model = model_from_json(open(filename).read())
-        except:
-            print('Error reading file: {0}. Cannot load previous model'.format(filename))
-            exit()
-        return model
-
-
-    def load_weights(self, model, filename):
-        try:
-            #model()
-            self = model.load_weights(filename+'_model')
-        except:
-            print('Error reading file: {0}. Cannot load previous weights'.format(filename))
-            exit()
 
 
     def save_model(self, filename, model = None):
