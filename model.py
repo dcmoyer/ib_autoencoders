@@ -29,6 +29,23 @@ from callbacks import BetaCallback
 K.set_image_dim_ordering('tf')
 RECON_LOSSES = ['bce', 'mse', 'binary_crossentropy', 'mean_square_error', 'mean_squared_error', 'iwae']
 
+def load_model(filename):
+        try:
+            model = model_from_json(open(filename).read())
+        except:
+            print('Error reading file: {0}. Cannot load previous model'.format(filename))
+            exit()
+        return model
+
+def load_weights(model, filename):
+    try:
+        #model()
+        self = model.load_weights(filename+'_model')
+    except:
+        print('Error reading file: {0}. Cannot load previous weights'.format(filename))
+        exit()
+
+
 class Model(object):
     def __init__(self, dataset, *args, **kwargs):
         hyper_params.update(kwargs)
@@ -1191,23 +1208,6 @@ class NoiseModel(Model):
 
     def get_loss_history(self):
         pass
-
-    def load_model(self, filename):
-        try:
-            model = model_from_json(open(filename).read())
-        except:
-            print('Error reading file: {0}. Cannot load previous model'.format(filename))
-            exit()
-        return model
-
-
-    def load_weights(self, model, filename):
-        try:
-            #model()
-            self = model.load_weights(filename+'_model')
-        except:
-            print('Error reading file: {0}. Cannot load previous weights'.format(filename))
-            exit()
 
 
     def save_model(self, filename, model = None):

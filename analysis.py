@@ -19,6 +19,7 @@ from sklearn.cross_validation import cross_val_score
 from scipy.special import entr
 from collections import defaultdict
 import pickle
+from dataset import Dataset
 
 # if isinstance( data, Dataset):
 #   data = data.data
@@ -392,7 +393,7 @@ def decoder(model, z = None):
     call_ = False
     for layr in model.layers:
         # only call decoder layer_list
-        if call_ and not isinstance(layr, keras.layers.core.Lambda) and not isinstance(layr, MADE) and not isinstance(layr, MADE_network):#and not ('vae' in layr.name or 'noise' in layr.name or 'info_dropout' in layr.name):
+        if call_ and not isinstance(layr, keras.layers.core.Lambda) and not isinstance(layr, IAF) and not isinstance(layr, MADE_network):#and not ('vae' in layr.name or 'noise' in layr.name or 'info_dropout' in layr.name):
             z_out = layr(z_out)
         if layr.name == final_latent:
             call_ = True
@@ -402,7 +403,9 @@ def decoder(model, z = None):
     generator = keras.models.Model(input = [z_inp], output = [z_out])
     return generator if z is None else generator.predict(z) 
 
-def sample_echo_reconstructions(model, dataset, n = 5, num_samples = 5, echo_batch = None, echo_dmax = 50):
+def sample_echo_reconstructions(model, dataset, n = 5, num_samples = 5, echo_batch = None, echo_dmax = 50, prefix = None):
+    if prefix is None:
+        prefix = 'results/'+dataset.name+'_echo'+str(echo_dmax)+str(n)
     np.random.shuffle(dataset.x_test)
     if echo_batch is not None:
         samples = dataset.x_test[:n]
@@ -412,10 +415,12 @@ def sample_echo_reconstructions(model, dataset, n = 5, num_samples = 5, echo_bat
     mean_function = model.encoder(samples, layer = 'z_mean')
     echo_function = model.encoder(samples, layer = 'echo')
     
+    generator = decoder(model)
     mean_act = mean_function([samples])[0]
     for i in range(num_samples):
         echo_output = echo_function([mean_act])[0]
-
+        recon = generator(z)
+        vis_reconstruction(recon, samples, prefix = 'results/')
 
 
 def plot_traversals(dataset, encoder, generator, top_dims = [], top = 10, prefix = "", 
@@ -536,10 +541,10 @@ def get_activation_stats(encoder, data, chunk_batch = 10000):
     return means, sigmas
 
 
-def vis_reconstruction(model, data, prefix='', noise=None, n=5, batch = 100, num_losses=1):
+def vis_reconstruction(inp, data, model = None, prefix='', noise=None, n=5, batch = 100, num_losses=1):
     # print "==> visualizing reconstructions, prefix = {}".format(prefix)
-    if isinstance(dataset, Dataset):
-        digit_dims = dataset.digit_dims 
+    if isinstance(data, Dataset):
+        digit_dims = data.digit_dims 
     else:
         dim_sqrt = int(np.sqrt(data.shape[-1]))
         if (dim_sqrt +.5)**2 == data.shape[-1]: # hacky int sqrt check
@@ -550,23 +555,28 @@ def vis_reconstruction(model, data, prefix='', noise=None, n=5, batch = 100, num
     figure = np.ones((digit_dims[0] * 3, (digit_dims[1]+1) * n))
 
     # print 'DATA SHAPE.... ', data.shape
-    data_dim = data.shape[1]
+    try:
+        data_dim = data.shape[1]
+    else:
+        data_dim = data.dim
     # if merged:
     #    dummy = Model(input = model.input, output = model.output[:-1, :data_dim])
     #    xbars = dummy.predict(data)
-
-    if noise is None:
-        #inp = [data]*num_losses if num_losses > 1 else data
-        #xbars = my_predict(model, inp, 'decoder')
-        xbars = model.predict(inp, batch_size = batch)
-
+    if model is None:
+        xbars = inp
     else:
-        data_noise = noise(data)
-        inp = [data_noise]*num_losses if num_losses > 1 else data_noise
-        if batch is not None:
+        if noise is None:
+            #inp = [data]*num_losses if num_losses > 1 else data
+            #xbars = my_predict(model, inp, 'decoder')
             xbars = model.predict(inp, batch_size = batch)
+
         else:
-            xbars = model.predict(inp)
+            data_noise = noise(data)
+            inp = [data_noise]*num_losses if num_losses > 1 else data_noise
+            if batch is not None:
+                xbars = model.predict(inp, batch_size = batch)
+            else:
+                xbars = model.predict(inp)
 
     if isinstance(xbars, list) and len(xbars) > 1:
         i = 0
