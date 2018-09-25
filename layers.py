@@ -145,12 +145,12 @@ def my_predict(model, data, layer_name, multiple = True):
 
 def positive_log_prob(dist, x):
   #, event_ndims=0
-  return (dist.bijector.inverse_log_det_jacobian(x, 0) +
+  return (dist.bijector.inverse_log_det_jacobian(x, 1) +
           dist.distribution.log_prob(dist.bijector.inverse(x)))
 
 def negative_log_prob(dist, x):
   #, event_ndims=0
-  return -(dist.bijector.inverse_log_det_jacobian(x, 0) +
+  return -(dist.bijector.inverse_log_det_jacobian(x, 1) +
           dist.distribution.log_prob(dist.bijector.inverse(x)))
 
 def tf_masked_flow(inputs, steps = None, layers = None, mean_only = True, activation = None, name = 'maf'):
