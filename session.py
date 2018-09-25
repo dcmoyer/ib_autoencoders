@@ -100,10 +100,10 @@ class Session(object):
                 "#!/bin/bash",
                 "cd /home/rcf-proj/gv/brekelma/autoencoders"]#,
             if self.per_label is not None:
-                statements.append("python3 test.py --filename \'{fn}\' --config \'{conf}\' --verbose {v} --dataset {dn} --per_label {pl}".format(
+                statements.append("python test.py --filename \'{fn}\' --config \'{conf}\' --verbose {v} --dataset {dn} --per_label {pl}".format(
                     name = self.name, param = param, time = self.time, conf = config_str, fn = os.path.join(folder, str(self.name+'_'+str(param))), v = self.verbose, dn = data_name, pl = self.per_label))
             else:
-                statements.append("python3 test.py --filename \'{fn}\' --config \'{conf}\' --verbose {v} --dataset {dn}".format(
+                statements.append("python test.py --filename \'{fn}\' --config \'{conf}\' --verbose {v} --dataset {dn}".format(
                     name = self.name, param = param, time = self.time, conf = config_str, fn = os.path.join(folder, str(self.name+'_'+str(param))), v = self.verbose, dn = data_name))
             # Write executable
             exfilename = os.path.join(folder, "exec", "dummy_"+str(count)+".sh")
@@ -152,9 +152,14 @@ class Session(object):
         
         #self.folder = config.split('.')[:-1]
         #make_dir(self.folder)
-
-        with open(os.path.join(os.getcwd(), config)) as conf:
-            config_dict = json.load(conf)
+        try:
+            with open(os.path.join(os.getcwd(), config)) as conf:
+                config_dict = json.load(conf)
+        except:
+            with open(os.path.join(os.getcwd(), 'configs', config)) as conf:
+                config_dict = json.load(conf)
+        #with open(os.path.join(os.getcwd(), config)) as conf:
+        #    config_dict = json.load(conf)
 
         #self.model_args = self._parse_config(config_dict)
         #print(model_args)

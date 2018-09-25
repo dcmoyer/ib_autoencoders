@@ -11,7 +11,8 @@ parser.add_argument('--per_label', type=int)
 parser.add_argument('--dataset', type=str, default='binary_mnist')
 parser.add_argument('--num_losses', type=int, default= 1)                                                                                                                               
 parser.add_argument('--params', type=str, default= 'betas')     
-parser.add_argument('--dmax', type=int, nargs='+') #parser.add_argument('--noise', type=str)                                                                                                                                     
+parser.add_argument('--dmax', type=int, nargs='+') #parser.add_argument('--noise', type=str)                                                                                                  
+                                   
 #parser.add_argument('--constraint', type=float)                                                                                                                              
 args, _ = parser.parse_known_args()
 
@@ -49,8 +50,12 @@ elif args.params in ['few_betas', 'small_beta']:
         params_used = beta_params
 
 if args.dmax is not None:
-        params_used["layers.5.layer_kwargs.d_max"] = list(args.dmax)
-        vary_together = False
+        try:
+                params_used["layers.5.layer_kwargs.d_max"] = list(args.dmax)
+        except:
+                params_used = {}
+                params_used["layers.5.layer_kwargs.d_max"] = list(args.dmax)
+#        vary_together = False
 
 #params = {"activation.encoder": ["softplus", "sigmoid"]}                                                                                                                     
 if args.dataset == 'fmnist':

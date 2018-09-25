@@ -544,7 +544,7 @@ class MADE_network(Layer):
         m, s = self.made_layers[i]['stat']
         print(m,s)
         self.made_tensors[i]['stat'] = [m(x), s(x)]
-        self.made_tensors[i]['act'] = self.made_layers[i]['act']([x, *self.made_tensors[i]['stat']])
+#        self.made_tensors[i]['act'] = self.made_layers[i]['act']([x, *self.made_tensors[i]['stat']])
         x = self.made_tensors[i]['act'] 
       return x
 

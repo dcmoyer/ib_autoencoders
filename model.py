@@ -1112,8 +1112,8 @@ class NoiseModel(Model):
                     #epoch_loss = np.sum(epoch_avg[loss_layer.name])
                     epoch_loss = np.mean(epoch_avg[loss_layer])  
                     self.hist[loss_layer].append(epoch_loss)
-                    if self.verbose:
-                        print(loss_layer.split("/")[0], " : ", epoch_loss, " \t ", end="")
+#                    if self.verbose:
+#                        print(loss_layer.split("/")[0], " : ", epoch_loss, " \t ", end="")
                 
                 if self.verbose:
                     print( "lagr ", np.mean(lm_avg))

@@ -1,7 +1,9 @@
 import numpy as np
 import six
 from six.moves.urllib.request import urlretrieve
-from abc import ABC, abstractmethod
+#from abc import ABC, abstractmethod
+import abc
+from abc import abstractmethod
 from scipy.misc import imread
 import os 
 import gzip
@@ -127,7 +129,8 @@ def mnist_load(path='mnist.npz'):
     f.close()
     return (x_train, y_train), (x_test, y_test)
 
-class Dataset(ABC): 
+@six.add_metaclass(abc.ABCMeta)
+class Dataset(): 
     #def __init__(self, per_label = None):
     #    if per_label is not None
         
@@ -286,7 +289,7 @@ class DSprites(Dataset):
         self.x_test = None
 
     def get_data(self):
-        dataset_zip = np.load('datasets/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz', encoding = 'bytes') # ‘latin1’
+        dataset_zip = np.load('datasets/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz', encoding = 'bytes')
         imgs = dataset_zip['imgs']
         imgs = imgs.reshape((imgs.shape[0], -1))
         latent_ground_truth = dataset_zip['latents_values']
