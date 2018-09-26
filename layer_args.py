@@ -75,7 +75,7 @@ class Layer(object):
             
 
         for samp in range(self.k):
-            net = 'E' if self.encoder else 'D'
+            net = 'Enc' if self.encoder else 'Dec'
             name_suffix = str(net)+'_'+str(index)+'_'+str(samp) if self.k > 1 else str(net)+'_'+str(index)
             if self.type in ['add', 'vae', 'additive']: 
                 if samp == 0:
@@ -100,7 +100,7 @@ class Layer(object):
                 if samp == 0:   
                     # slightly different here... layer_kwargs used for echo / lambda
                     z_mean = Dense(self.latent_dim, activation='linear', name='z_mean'+name_suffix)# **self.layer_kwargs)
-                    z_act = layers.Echo(**self.layer_kwargs)
+                    z_act = layers.Echo(name = 'echo_act'+name_suffix, **self.layer_kwargs)
                     z_act.trainable = self.layer_kwargs['trainable']
                     print("Trainable ? ", z_act.trainable, self.layer_kwargs['trainable'], z_act)
                     #z_act = Lambda(layers.echo_sample, name = 'z_act_'+name_suffix, arguments = self.layer_kwargs)
@@ -163,9 +163,10 @@ class Layer(object):
                     # args['layers'] = self.layer_kwargs.get('layers', 1)
                     # args['mean_only'] = self.layer_kwargs.get('mean_only', 1)
                     # args['activation'] = self.layer_kwargs.get('activation', 'relu')
-                    self.layer_kwargs['name'] = 'maf_density'+name_suffix
+                    
                     self.try_activations(kw = True)
-                          
+                    print(name_suffix)
+                    self.layer_kwargs["name"] = 'maf_density'+str(name_suffix)
                     reshape = Reshape((self.latent_dim,), name = 'conv_reshape'+name_suffix)
 
                     #if len(K.int_shape(z_mean)) > 2:
@@ -174,7 +175,8 @@ class Layer(object):
                         #z_mean = Reshape([-1, *z_mean._keras_shape[1:]])(z_mean) 
                         #z_mean = Flatten()(z_mean)
                     
-                    maf = Lambda(layers.tf_masked_flow, arguments = self.layer_kwargs, name = 'masked_flow'+name_suffix)
+                    maf = Lambda(layers.tf_masked_flow, arguments = self.layer_kwargs)#, name = 'masked_flow'+name_suffix)
+                    
                     stats_list.append([reshape])
                     act_list.append(maf)
                     # directly gives log probability! (from input z)

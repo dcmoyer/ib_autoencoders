@@ -145,12 +145,12 @@ def my_predict(model, data, layer_name, multiple = True):
 
 def positive_log_prob(dist, x):
   #, event_ndims=0
-  return (dist.bijector.inverse_log_det_jacobian(x, 0) +
+  return (dist.bijector.inverse_log_det_jacobian(x, 1) +
           dist.distribution.log_prob(dist.bijector.inverse(x)))
 
 def negative_log_prob(dist, x):
   #, event_ndims=0
-  return -(dist.bijector.inverse_log_det_jacobian(x, 0) +
+  return -(dist.bijector.inverse_log_det_jacobian(x, 1) +
           dist.distribution.log_prob(dist.bijector.inverse(x)))
 
 def tf_masked_flow(inputs, steps = None, layers = None, mean_only = True, activation = None, name = 'maf'):
@@ -179,7 +179,7 @@ def tf_masked_flow(inputs, steps = None, layers = None, mean_only = True, activa
   maf_chain = list(itertools.chain.from_iterable([
           tfb.MaskedAutoregressiveFlow(
             shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
-            hidden_layers = layers, shift_only = mean_only, name = name+str(i)))
+            hidden_layers = layers, shift_only = mean_only), name = name+str(i))
             #, **{"kernel_initializer": tf._initializer()}))
           ,tfb.Permute(list(reversed(range(dim))))]  #np.random.permutation(dim)
           for i in range(steps)))
@@ -191,15 +191,16 @@ def tf_masked_flow(inputs, steps = None, layers = None, mean_only = True, activa
     bijector=tfb.Chain(maf_chain[:-1])
     #, validate_args = True)
     )
-  print()
-  print("TRANSFORMED PROB SHAPE ", negative_log_prob(maf, z_mean))
-  print()
+  #print()
+  #print("TRANSFORMED PROB SHAPE ", negative_log_prob(maf, z_mean))
+  #print()
   # maf = tfd.TransformedDistribution(
   #   distribution=tfd.Normal(loc=0.0, scale=1.0),
   #   bijector=tfb.MaskedAutoregressiveFlow(
   #       shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
   #           hidden_layers=layers, shift_only=mean_only), activation = activation), name = name+step)
-
+  print("maf name ", maf.name)
+  print("z mean name ", z_mean.name)
   return K.expand_dims(negative_log_prob(maf, z_mean), 1)
   #transformed_log_prob(maf, z_mean)
   #return maf.bijector.log_prob(z_mean)

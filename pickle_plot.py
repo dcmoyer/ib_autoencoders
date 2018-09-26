@@ -27,13 +27,15 @@ folders = [str('results/' + f) for f in folders]
 #analysis.rd_curve(f, beta = True, name = 'add vs mult 200')#f[0].split('/')[-1], threshold = .00001)
 
 
-f = ['results/ido_small1250_binary_mnist', 'results/vae_small1250_binary_mnist',  'results/echoA_small1250_binary_mnist']#, 'results/made_small1250_binary_mnist']
+f = ['results/made_iaf_binary_mnist'] #, 'results/vae_small1250_binary_mnist',  'results/echoA_small1250_binary_mnist']#, 'results/made_small1250_binary_mnist']
+analysis.rd_curve(f, beta = True, name = 'made_iaf_binaryfull')
 #f = ['results/vae_check_smalltrain_binary_mnist', 'results/echo2add_smalltrain_binary_mnist', 'results/echo_add_smalltrain_Init_binary_mnist']#results/echo_add_smalltrain_Init_binary_mnist']#, 'results/alemi_test_vae_binary_mnist']
-analysis.rd_curve(f, beta = True, name = '1250+ido')
 
 
 
 
+f = ['results/echoAdd_gated_small_400_fmnist', 'results/vae_gated_small_400_fmnist']
+analysis.rd_curve(f, beta = True, name = 'fmnist 500-400')
 #f = [, 'results/']
 
 f = ['results/vae_gated_full_fmnist', 'results/echoAdd_gated_full_fmnist']

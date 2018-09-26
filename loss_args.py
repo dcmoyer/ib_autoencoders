@@ -36,6 +36,7 @@ class Loss(object):
             'relation': 'equal',
             'constraint': None,
             'recon': None,
+            'callback': False,
             'from_layer': [], # "stats", "recon", in order of list (stats = z_mean, z_var ... recon = x_true, x_pred)
             'from_output': [], 
             'loss_kwargs': {}
@@ -45,6 +46,7 @@ class Loss(object):
             setattr(self, key, args[key])
 
         self.beta = beta 
+        self.name = self.type
 
     def set_beta(self, beta):
         self.beta = beta
@@ -193,18 +195,22 @@ class Loss(object):
 
         elif self.type in ['iaf', 'iaf_encoder', 'iaf_conditional', 'iaf_density']:
             self.from_layer = ['addl']
-            return Lambda(l.mean_one, arguments = {"keepdims": True}, name = 'iaf'+name_suffix)
+            self.type = 'iaf_density'
+            self.name = 'iaf'+name_suffix
+            return Lambda(l.mean_one, arguments = {"keepdims": True}, name = self.name)
 
-        elif self.type in ['made_density', 'made_marginal']:
+        elif self.type in ['made_density', 'made_marginal', 'maf', 'maf_density']:
             prev_made = False
             if not prev_made:
                 self.from_layer = ['act'] #arguments = {"keepdims":True}
-                return Lambda(l.mean_one, arguments = {"keepdims":True}, name = 'made'+name_suffix)
+                self.type = 'maf_density'
+                self.name = 'maf_density'+name_suffix
+                return Lambda(l.mean_one, arguments = {"keepdims":True}, name = self.name)
                 #return Lambda(l.identity_one, name = 'made'+name_suffix)
             else:
                 # default is gaussian_inputs (i.e. sample isotropic gauss, transform into mean / mean + std of gaussian)
                 # specify loss['mean_only'] = false if stddev learned, otherwise mean_only w/ stddev = 1
-                self.type = 'made_density'
+                self.type = 'maf_density'
                 #
                 # RANDOM NOISE =?  Q(z) ESTIMATE .... INPUT = Z ACT as points to evaluate (PROVIDES SHAPE)
                 # loss function can take E_q r(z), but also E_q q(z|x) (GAUSSIAN for now, later IAF)

@@ -24,7 +24,7 @@ import losses as l
 import analysis
 import pickle
 import warnings
-from callbacks import BetaCallback
+import callbacks
 
 K.set_image_dim_ordering('tf')
 RECON_LOSSES = ['bce', 'mse', 'binary_crossentropy', 'mean_square_error', 'mean_squared_error', 'iwae']
@@ -129,6 +129,7 @@ class NoiseModel(Model):
         self.encoder_layers = [] #defaultdict(dict)
         self.decoder_layers = [] #defaultdict(dict)
         self.density_estimators = []#defaultdict(list)
+        self.density_callback = False
 
     def _parse_args(self):
         
@@ -395,12 +396,18 @@ class NoiseModel(Model):
         self.decoder_layers = self._build_architecture(self.encoder_layers[len(self.encoder_layers)-1]['act'], encoder = False)
         self.model_outputs, self.model_losses, self.model_loss_weights = self._make_losses()
         #self.metric_outputs, self.metric_losses, self.metric_weights = self._make_losses(metrics = True)
-        callbacks = self._make_callbacks()
+        try:
+            self.dc_model = keras.models.Model(inputs = self.input_tensor, outputs = self.dc_outputs)
+        except:
+            pass
+
+        
         #print(self.model_outputs)
         #print([type(o) for o in self.model_outputs])
         self.model = keras.models.Model(inputs = self.input_tensor, outputs = self.model_outputs)
+        
         print(self.model.summary())
-        print(callbacks)
+
         print(self.model_loss_weights)
 
         for i in self.model.layers[1:]:
@@ -416,6 +423,10 @@ class NoiseModel(Model):
         
         self.model.compile(optimizer = self.optimizer, loss = self.model_losses, loss_weights = self.model_loss_weights) # metrics?
         print(self.model.metrics_names)
+        callbacks = self._make_callbacks()
+        print(callbacks)
+
+
         self.sess = tf.Session()
         with self.sess.as_default():
             tf.global_variables_initializer().run()
@@ -592,6 +603,7 @@ class NoiseModel(Model):
         if loss_list is not None:
             #for ls in ['dec', 'enc']:
             for i in range(len(loss_list)):
+                callback = False
                 print('loss type ', loss_list[i])
                 #print(vars(loss_list[i]))
                 loss = Loss(**loss_list[i]) if isinstance(loss_list[i], dict) else loss_list[i]
@@ -629,6 +641,17 @@ class NoiseModel(Model):
                     # enc / dec already done
                     layers = self.encoder_layers if enc else self.decoder_layers
                     layers = layers if not 'density' in loss.type else self.density_estimators
+                    if loss.callback:
+                        self.density_callback = True 
+                        callback = True
+                        try:
+                            a = self.dc_outputs[0]
+                        except:
+                            self.dc_outputs = []
+                            self.dc_losses = [] 
+                            self.dc_weights = []
+                            self.dc_names = {}
+
                     #if 'density' in loss.type:
                         #print('density ', list(self.density_estimators.keys()))
                     lyr = loss.layer 
@@ -698,6 +721,13 @@ class NoiseModel(Model):
                     self.metric_outputs.append(self.loss_functions[-1](outputs))
                     self.metric_losses.append(l.dim_sum) 
                     self.metric_weights.append(loss.get_loss_weight())
+                elif callback:
+                    print("ENTERING CALLBACK ", self.loss_functions[-1])
+                    print('outputs', outputs)
+                    self.dc_outputs.append(self.loss_functions[-1](outputs[0]))
+                    self.dc_losses.append(l.mean_one) 
+                    self.dc_weights.append(loss.get_loss_weight())
+                    self.dc_names[loss.name] = len(self.dc_losses)
                 else:
                     try:
                         self.loss_inputs.append(outputs)
@@ -735,11 +765,11 @@ class NoiseModel(Model):
             return self.model_outputs, self.model_losses, self.model_loss_weights
 
     def _make_callbacks(self):
-        callbacks = []
+        my_callbacks = []
         if self.lr_callback:
-            callbacks.append(LearningRateScheduler(self.lr))
+            my_callbacks.append(LearningRateScheduler(self.lr))
         print()
-        print("MAKING CALLBACKS ", self.anneal_functions)
+        #print("MAKING CALLBACKS ", self.anneal_functions)
         if self.anneal_functions:
             
             annealed_losses = []
@@ -750,8 +780,26 @@ class NoiseModel(Model):
                     self.model_loss_weights[lw] = loss_weight_tensor
                     annealed_losses.append(loss_weight_tensor)
             
-            callbacks.append(BetaCallback(functions= self.anneal_functions, layers = annealed_losses))
-        return callbacks
+            my_callbacks.append(callbacks.BetaCallback(functions= self.anneal_functions, layers = annealed_losses))
+        
+        if self.density_callback:
+            #for i in range(len(self.dc_losses)):
+            dc = callbacks.DensityTrain(self.dc_model, self.dc_names, self.dc_outputs, self.dc_losses, self.dc_weights)
+            my_callbacks.append(dc)
+
+            dc2 = callbacks.DensityEpoch(self.dc_model, self.dc_names, self.dc_outputs, self.dc_losses, self.dc_weights, batch = self.batch)
+            my_callbacks.append(dc2)
+
+            layer_name = self.encoder_layers[-1]['act'][0].name
+            print("LAYER NAME ", layer_name, ' act ', self.encoder_layers[-1]['act'])
+            print("model names ", [i.name for i in self.model.layers])
+            fetches = [tf.assign(dc.x, self.model.targets[0], validate_shape=False),
+                tf.assign(dc.z, self.model.get_layer(layer_name.split("/")[0]).get_output_at(0)[0], validate_shape=False),
+                tf.assign(dc2.x, self.model.targets[0], validate_shape=False),
+                tf.assign(dc2.z, self.model.get_layer(layer_name.split("/")[0]).get_output_at(0)[0], validate_shape=False)]
+            self.model._function_kwargs = {'fetches': fetches}
+
+        return my_callbacks
         print()
 
     def transform(self):

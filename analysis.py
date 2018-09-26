@@ -420,7 +420,7 @@ def sample_echo_reconstructions(model, dataset, n = 5, num_samples = 5, echo_bat
     for i in range(num_samples):
         echo_output = echo_function([mean_act])[0]
         recon = generator(z)
-        vis_reconstruction(recon, samples, prefix = 'results/')
+        vis_reconstruction(recon, samples, prefix = prefix+'_'+str(n)+'_'+str(i))
 
 
 def plot_traversals(dataset, encoder, generator, top_dims = [], top = 10, prefix = "", 
@@ -557,7 +557,7 @@ def vis_reconstruction(inp, data, model = None, prefix='', noise=None, n=5, batc
     # print 'DATA SHAPE.... ', data.shape
     try:
         data_dim = data.shape[1]
-    else:
+    except:
         data_dim = data.dim
     # if merged:
     #    dummy = Model(input = model.input, output = model.output[:-1, :data_dim])
