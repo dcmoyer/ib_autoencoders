@@ -248,7 +248,11 @@ class Echo(Layer):
 
   def build(self, input_shape):
       #self.batch = input_shape[0]
-      self.dim = input_shape[-1]
+      if isinstance(input_shape, list):
+        self.dim = input_shape[0][-1]
+      else:
+        self.dim = input_shape[-1]
+
       #print("BATCH SIZE ECHO LAYER ", self.batch)
       if self.trainable:
         self.cap_param = self.add_weight(name='capacity', 
@@ -308,6 +312,7 @@ class Echo(Layer):
     else:
         noisy_encoder = z_mean + c * noise
 
+    self.prev_noise = noise
     noisy_encoder.set_shape(K.int_shape(z_mean))
     #self.cap_param.set_shape()
     return noisy_encoder
@@ -321,7 +326,9 @@ class Echo(Layer):
 
   def get_capacity(self, x):
       return self.cap_param
-
+  
+  def get_noise(self,x):
+      return self.noise
 
 def make_ar_flow(x, transform_dims = [640, 640, 640, 640], activation = 'relu', flow_type = 'planar', mask = 'made', prefix = ''):
   for i in range(len(transform_dims)):

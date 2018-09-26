@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import analysis
 
-
+plt.style.use('seaborn-whitegrid')
 folders = [
     'vae_beta',
     'vae_constraint',
@@ -25,21 +25,43 @@ folders = [str('results/' + f) for f in folders]
 
 #f = ['results/echoA_small1250_binary_mnist', 'results/echo_mult_small1250_binary_mnist']#, 'results/made_small1250_binary_mnist']
 #analysis.rd_curve(f, beta = True, name = 'add vs mult 200')#f[0].split('/')[-1], threshold = .00001)
-
-
-f = ['results/made_iaf_binary_mnist'] #, 'results/vae_small1250_binary_mnist',  'results/echoA_small1250_binary_mnist']#, 'results/made_small1250_binary_mnist']
-analysis.rd_curve(f, beta = True, name = 'made_iaf_binaryfull')
+#'results/made_iaf_binary_mnist',
+#'results/made_iaf_binary_mnist', 
+f = ['results/made_iaf_binary_mnist','results/echoAdd_gated_full_binary_mnist', 'results/vae_gated_full_binary_mnist'] #, 'results/vae_small1250_binary_mnist',  'results/echoA_small1250_binary_mnist']#, 'results/made_small1250_binary_mnist']
+analysis.rd_curve(f, beta = True, name = 'binary_mnist_full')
 #f = ['results/vae_check_smalltrain_binary_mnist', 'results/echo2add_smalltrain_binary_mnist', 'results/echo_add_smalltrain_Init_binary_mnist']#results/echo_add_smalltrain_Init_binary_mnist']#, 'results/alemi_test_vae_binary_mnist']
 
+f = ['results/echoAdd_gated_full_fmnist', 'results/vae_gated_full_fmnist']
+analysis.rd_curve(f, beta = True, name = 'fmnist_full')
 
-
-
-f = ['results/echoAdd_gated_small_400_fmnist', 'results/vae_gated_small_400_fmnist']
-analysis.rd_curve(f, beta = True, name = 'fmnist 500-400')
+#f = ['results/made_full_fmnist', 'results/made_iaf_fmnist']
+#analysis.rd_curve(f, beta = True, name = 'made_fmnist_full')
 #f = [, 'results/']
 
-f = ['results/vae_gated_full_fmnist', 'results/echoAdd_gated_full_fmnist']
-analysis.rd_curve(f, beta = True, name = 'gated_full_fmnist')
+#'results/made_500_400_binary_mnist',
+f = ['results/made_500_400_binary_mnist', 'results/vae_500_400_binary_mnist', 'results/echoA_500_400_binary_mnist']
+analysis.rd_curve(f, beta = True, name = 'binary_mnist_500_400')
+
+f = ['results/vae_1250_400_binary_mnist', 'results/echoA_1250_400_binary_mnist']
+analysis.rd_curve(f, beta = True, name = 'binary_mnist_1250_400')
+
+f = ['results/vae_1250_400_fmnist', 'results/echoA_1250_400_fmnist']
+analysis.rd_curve(f, beta = True, name = 'fmnist_1250_400')
+
+
+f = ['results/vae_gated_small_binary_mnist', 'results/echoAdd_gated_small_400_fmnist']
+analysis.rd_curve(f, beta = True, name = 'binary_mnist_500_200')
+
+#'results/made_500_200_fmnist',
+f = ['results/made_500_200_fmnist', 'results/vae_gated_small_400_fmnist', 'results/echoA_500_400_fmnist', 'results/vae_500_400_fmnist']
+analysis.rd_curve(f, beta = True, name = 'fmnist_500_400', threshold = .01)
+# 
+f = ['results/made_500_200_binary_mnist', 'results/vae_gated_small_binary_mnist', 'results/echoAdd_gated_small_binary_mnist']
+analysis.rd_curve(f, beta = True, name = 'binary_mnist_500_200')
+
+#'results/made_500_200_fmnist', 
+f = ['results/echoA_dmax_small_binary_mnist', 'results/echoA_dmax_binary_mnist', 'results/echo_dmax_full_binary_mnist']
+analysis.rd_curve(f, beta = True, name = 'others')
 
 #f = ['results/echoCONV-smalltrain_binary_mnist', 'results/vaeCONV-smalltrain_binary_mnist']#,'results/echo_alemi_-.5init_binary_mnist']
 #analysis.rd_curve(f, beta = True, name = 'conv_smalltrain')

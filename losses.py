@@ -151,8 +151,11 @@ def echo_minmax(inputs, _min = True, d_max = 50):
     return tf.expand_dims(cap, 1) #tf
 
 def echo_loss(inputs, d_max = 50):
-    echo_layer = inputs[0]
-    cap_param = echo_layer #.get_weights()[0]#get_cap_param()
+    if isinstance(inputs, list):
+        cap_param = inputs[0]
+    else:
+        cap_param = inputs
+
     capacities = tf.nn.softplus(- cap_param) #tf.identity(tf.nn.softplus(- cap_param), name='capacities') #tf.maximum(tf.nn.softplus(- cap_param), min_capacity, name='capacities')
     cap = tf.reduce_sum(capacities, name="capacity")
     return tf.expand_dims(tf.expand_dims(cap,0), 1)

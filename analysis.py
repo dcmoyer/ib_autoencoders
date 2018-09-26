@@ -53,8 +53,9 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
             #print("dirs ", dirs)
             #print("files ", files)
             for fn in files:
-            #print("File ", fn)
+                #print("File ", fn)
                 if ".pickle" in fn:
+                    print(fn)
                     prefix = fn.split(".pickle")[0].split("_")[:2]
                     param = fn.split(".pickle")[0]
                     #print("multiplicative? ", len(param.split("multiplicative")[-1]))
@@ -62,37 +63,42 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
                     add = -1 if len(param.split("additive")[0]) >= len(param.split("additive")[-1]) and len(param.split("additive")[-1])>1 else 0 #
                     param = fn.split(".pickle")[0].split("additive")[add].split("multiplicative")[mult].split("_")[-1]
                     
-                    #if float(param) <= threshold and float(param) > 10**-6:
-                    #    continue
+                    if float(param) <= threshold and float(param) > 10**-6:
+                        continue
 
                     param_inds[folder].append(param)
                     
-
+                    #print(fn, ':', param)
                     with open(os.path.join(os.getcwd(), folder, fn), "rb") as pkl_data:
                         try:
                             results = pickle.load(pkl_data)
-                        except:
-                            print("Could not open ", fn)
-                            continue
+                        except Exception as e:
+                            try:
+                                results = pickle.load(pkl_data, encoding='latin1')
+                            except:
+                                print("Could not open ", fn)
+                                print(e)
+                                continue
                         #print(list(results.keys()))
-                        if len([k for k in results.keys() if 'test' not in k and ('gaussian' in k or 'made' in k)]) >= 2:
-                            for kk in [k for k in results.keys() if ('gaussian' in k or 'made' in k)]:
+                        allregs = [k for k in results.keys() if ('test' not in k and ('gaussian' in k or 'made' in k or 'iaf' in k))]
+                        if len(allregs) >= 2:
+                            for kk in [k for k in results.keys() if (('gaussian' in k or 'made' in k or 'iaf' in k))]:
                                 if 'test' in kk:
                                     try:
-                                        results['test_mi_est_reg'] += -results[kk] if 'gaussian' in kk else results[kk]
+                                        if 'test_mi_est_reg' not in results:
+                                            results['test_mi_est_reg'] = [0]*len(results[kk])
+                                        results['test_mi_est_reg'] +=  results[kk]
                                     except:
-                                        results['test_mi_est_reg'] = -results[kk] if 'gaussian' in kk else results[kk]
+                                        results['test_mi_est_reg'] = results[kk]
                                 else:
-                                    if 'gaussian' in kk: 
+                                    print(type(results[kk]))
+                                    print(len(results[kk]))
+                                    try:
                                         if 'mi_est_reg' not in results:
                                             results['mi_est_reg'] = [0]*len(results[kk])
-                                        if len(results['mi_est_reg']) != len(results[kk]):
-                                            print()
-                                        results['mi_est_reg'] = [results['mi_est_reg'][i] - results[kk][i] for i in range(len(results[kk]))]
-                                    else:
-                                        if 'mi_est_reg' not in results:
-                                            results['mi_est_reg'] = [0]*len(results[kk])
-                                        results['mi_est_reg'] = [results['mi_est_reg'][i] + results[kk][i] for i in range(len(results[kk]))]
+                                        results['mi_est_reg'] +=  results[kk]
+                                    except:
+                                        results['mi_est_reg'] = results[kk]
                                     #except:  
                                     #   results['mi_est_reg'] += [-1*a for a in results[kk]] if 'gaussian' in kk else results[kk]
                                 
@@ -100,7 +106,7 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
                             k = loss.split("/")[0]
                             #print(loss, " len loss ", results[loss])
                             if 'test' not in loss:
-                                print(loss)
+                                #print(loss)
                                 if 'recon' in loss:
                                     recons[folder][k].append(results[loss][-1] if 'test' not in loss else results[loss])
                                     try:
@@ -113,13 +119,18 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
                                         for i in range(len(key_loss)):
                                             key_loss[i] = 'reg' if key_loss[i] == '' else key_loss[i]
                                         key_loss = "_".join(key_loss)
+                                        print("key loss wrong ", key_loss)
                                     else:
                                         key_loss = k 
                                     regs[folder][key_loss].append(results[loss][-1] if 'test' not in loss else results[loss])
                                     try:
                                         test_regs[folder][key_loss].append(results[str('test_'+loss)])
-                                    except:
-                                        test_regs[folder][key_loss].append(results[str('test_'+key_loss)])
+                                    except Exception as e:
+                                        print(e)
+                                        try:
+                                            test_regs[folder][key_loss].append(results[str('test_'+key_loss)])
+                                        except Exception as e:
+                                            test_regs[folder]['test_mi_est_reg'].append(results['test_mi_est_reg'])
 
                                 elif 'lagr' in loss:
                                     if 'test' in loss:
@@ -200,8 +211,8 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
                 
                 plt.figure(figsize=(15,15))
                 plt.title(str("Train/Test RD "+ folder.split('/')[-1]))
-                plt.xlabel(reg)
-                plt.ylabel(recon)
+                plt.xlabel("Rate")
+                plt.ylabel("Distortion")
                 # scatter except for minimum recon => dotted line
 
                 try:
@@ -218,8 +229,9 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
 
                 plt.legend()
                 for i in sorted(range(len(param_inds[folder])), key=lambda k: float(param_inds[folder][k])):
-                    if i % 2 == 0:
-                        plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]-offset, recons[folder][recon][i]-offset), size = 'large')
+                    pass
+                    #if i % 2 == 0:
+                        #plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]-offset, recons[folder][recon][i]-offset), size = 'large')
                 
 
                 plt.savefig(os.path.join(folder, str(*recon.split('loss')[:-1])+'_'+str(*reg.split('loss')[:-1])+'.pdf'))#, bbox_inches='tight')
@@ -229,8 +241,8 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
                 plt.figure()
                 plt.scatter(regs[folder][reg], lagrs[folder][lagr])
                 #plt.scatter(test_regs[folder][reg], lagrs[])
-                for i in range(len(regs[folder][reg])):
-                    plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]+offset, lagrs[folder][lagr][i]+offset))
+                #for i in range(len(regs[folder][reg])):
+                #    plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]+offset, lagrs[folder][lagr][i]+offset))
                 plt.savefig(os.path.join(folder, lagr+'_'+str(*reg.split('loss')[:-1])+'.pdf'), bbox_inches='tight')
                 plt.close()
             #except Exception as e:
@@ -261,8 +273,9 @@ def rd_curve(folders, beta = False, savefig = True, name = None, recon_loss = 'b
                     plt.scatter([test_regs[folder][reg][i] for i in range(len(test_regs[folder][reg])) if i != idx], 
                         [test_recons[folder][recon][i] for i in range(len(test_recons[folder][recon])) if i != idx], label = folder.split('/')[1].split('_')[0]+'_test')
                     for i in sorted(range(len(param_inds[folder])), key=lambda k: float(param_inds[folder][k])):
-                        if i % 2 == 0:
-                            plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]-offset, recons[folder][recon][i]-offset), size = 'large')
+                        pass
+                        #if i % 2 == 0:
+                            #plt.annotate(str(round(float(param_inds[folder][i]),1)), xy=(regs[folder][reg][i]-offset, recons[folder][recon][i]-offset), size = 'large')
                     
 
                     plt.axhline(y= recons[folder][recon][idx], color = (np.random.rand(), np.random.rand(), np.random.rand()), linestyle='--', label = 'AE_'+folder.split('/')[1].split('_')[0]+'train')
@@ -435,12 +448,12 @@ def sample_echo_reconstructions(model, dataset, n = 10, num_samples = 5, echo_ba
         echo_output = echo_function([mean_act])[0]
         recon = generator.predict(echo_output)
         vis_reconstruction(recon[:n,:], samples, prefix = prefix+'_'+str(i), dims = dataset.dims)
-        try:
-            avg += recon[:n,:]
-        except:
-            avg = recon[:n,:]
-    avg = avg/num_samples
-    vis_reconstruction(avg[:n,:], samples, prefix = prefix+'_'+'avg', dims = dataset.dims)
+        try:
+            avg += recon[:n,:]
+        except:
+            avg = recon[:n,:]
+    avg = avg/num_samples
+    vis_reconstruction(avg[:n,:], samples, prefix = prefix+'_'+'avg', dims = dataset.dims)
 
     #vis_reconstruction(recon[:n,:], samples, prefix = prefix+'_'+str(i), dims = dataset.dims)
 

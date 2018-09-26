@@ -104,13 +104,14 @@ class Layer(object):
                     z_act.trainable = self.layer_kwargs['trainable']
                     print("Trainable ? ", z_act.trainable, self.layer_kwargs['trainable'], z_act)
                     #z_act = Lambda(layers.echo_sample, name = 'z_act_'+name_suffix, arguments = self.layer_kwargs)
+                    echo_noise = Lambda(z_act.get_noise, name = 'noise'+name_suffix)
                     capacity = Lambda(z_act.get_capacity, name = 'capacity'+name_suffix)
                     #capacity = Lambda(layers.echo_capacity, name = 'capacity'+name_suffix, arguments = {'init': self.layer_kwargs['init']})#, 'batch': self.layer_kwargs['batch']})
                 # note: k = 1 if k used as d_max, otherwise will have k separate layer calls
                 # tf.get_variable  self.layer_kwargs['init']
                 stats_list.append([z_mean])
                 act_list.append(z_act)
-                addl_list.append(capacity)
+                addl_list.append([capacity, echo_noise])
 
             elif self.type in ['bir', 'constant_additive']:
                 if samp == 0:   
@@ -158,6 +159,7 @@ class Layer(object):
 
             elif self.type in ['maf', 'masked_arf']:#, 'gaussian_af', 'gaussian_arf', 'gaussian_maf']:
                 tf_made = True
+                call_on_addl = []
                 if tf_made:
                     # args['steps']= self.layer_kwargs.get('steps', 1)
                     # args['layers'] = self.layer_kwargs.get('layers', 1)
@@ -176,9 +178,14 @@ class Layer(object):
                         #z_mean = Flatten()(z_mean)
                     
                     maf = Lambda(layers.tf_masked_flow, arguments = self.layer_kwargs)#, name = 'masked_flow'+name_suffix)
-                    
+                    if self.layer_kwargs.get("noise_estimator", False):
+                        self.layer_kwargs["name"] = 'maf_noise_density'+str(name_suffix)
+                        maf2 = Lambda(layers.tf_masked_flow, arguments = self.layer_kwargs)
+                        call_on_addl.append(maf)
+
                     stats_list.append([reshape])
                     act_list.append(maf)
+                    
                     # directly gives log probability! (from input z)
 
                 else:
@@ -240,8 +247,10 @@ class Layer(object):
                 except:
                     raise AttributeError("Error Importing Activation ", self.type)
                 act_list.append(z_act)
-       
-        return {'stat': stats_list, 'act': act_list, 'addl': addl_list}
+        try:
+            return {'stat': stats_list, 'act': act_list, 'addl': addl_list, 'call_on_addl': call_on_addl}
+        except:
+            return {'stat': stats_list, 'act': act_list, 'addl': addl_list}
             # if stats_list:
             #     return [stats_list, act_list]
             # else:

@@ -793,16 +793,15 @@ class NoiseModel(Model):
             dc = callbacks.DensityTrain(self.dc_model, self.dc_names, self.dc_outputs, self.dc_losses, self.dc_weights)
             my_callbacks.append(dc)
 
-            dc2 = callbacks.DensityEpoch(self.dc_model, self.dc_names, self.dc_outputs, self.dc_losses, self.dc_weights, batch = self.batch)
-            my_callbacks.append(dc2)
+            #dc2 = callbacks.DensityEpoch(self.dc_model, self.dc_names, self.dc_outputs, self.dc_losses, self.dc_weights, batch = self.batch)
+            #my_callbacks.append(dc2)
 
             layer_name = self.encoder_layers[-1]['act'][0].name
-            print("LAYER NAME ", layer_name, ' act ', self.encoder_layers[-1]['act'])
-            print("model names ", [i.name for i in self.model.layers])
+            #print("LAYER NAME ", layer_name, ' act ', self.encoder_layers[-1]['act'])
+            #print("model names ", [i.name for i in self.model.layers])
             fetches = [tf.assign(dc.x, self.model.targets[0], validate_shape=False),
-                tf.assign(dc.z, self.model.get_layer(layer_name.split("/")[0]).get_output_at(0)[0], validate_shape=False),
-                tf.assign(dc2.x, self.model.targets[0], validate_shape=False),
-                tf.assign(dc2.z, self.model.get_layer(layer_name.split("/")[0]).get_output_at(0)[0], validate_shape=False)]
+                tf.assign(dc.z, self.model.get_layer(layer_name.split("/")[0]).get_output_at(0)[0], validate_shape=False)]
+                
             self.model._function_kwargs = {'fetches': fetches}
 
         return my_callbacks
@@ -952,6 +951,10 @@ class NoiseModel(Model):
                 stat_k = functions['stat']
                 act_k = functions['act']
                 addl_k = functions['addl']
+                try:
+                    call_on_addl = functions['call_on_addl']
+                except:
+                    call_on_addl = None
 
                 print("layer functions: stats ", functions['stat'], ' act ', functions['act'], ' addl ', functions['addl'])
                 if stat_k:
@@ -1017,6 +1020,17 @@ class NoiseModel(Model):
                         layers_list[-1]['addl'].append(a)
                         #current_call = layers_list[-1]['act']
                     print("appended")
+                if call_on_addl is not None:
+                    for k in range(len(call_on_addl)):
+                        print("CURRENT (i.e. prev layer) ", current, current_call)
+                        if isinstance(current_call, list):
+                            print("current is a list")
+                            current = current_call[k] if len(current_call) > 1 else current_call[0]
+                        else:
+                            current = [current]
+                        
+                        a = addl_lyr(current)
+                        layers_list[-1]['act'].append(a)
                     #print("ADDL for last LAYER ", layers_list[layer_ind]['addl'])
                 #for new, prev in zip(act_lyr, current_call):
                 #layers_list[layer_ind]['act'].append(act_lyr(current))

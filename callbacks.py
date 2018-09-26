@@ -1,5 +1,6 @@
 from keras.callbacks import Callback
 import tensorflow as tf
+import numpy as np
 from keras.backend import get_session
 from keras.backend import eval
 from collections import defaultdict
@@ -59,7 +60,8 @@ class DensityTrain(Callback):
 
 
     def on_epoch_end(self, epoch, logs={}):
-        if self.avg:
+        print(self.avg)
+        if self.avg != {}:
             for k, v in self.avg:
                 self.avg[k] = self.avg[k]/self.num_batches
                 self.hist[k].append(self.avg[k])
@@ -92,7 +94,8 @@ class DensityTrain(Callback):
                 self.avg[self.keys[i]] = losses[i]
 
 class DensityEpoch(Callback):
-    def __init__(self, model, loss_names, outputs, losses,  weights = None, batch = 100, lr = .0003):#betas, sched, screening = False, recon = False): # mod, minbeta=0):
+    def __init__(self, data, model, loss_names, outputs, losses,  weights = None, batch = 100, lr = .0003):#betas, sched, screening = False, recon = False): # mod, minbeta=0):
+        self.data = data
         self.model = model
         self.loss_names = loss_names
         self.outputs = outputs
@@ -128,8 +131,8 @@ class DensityEpoch(Callback):
         #         self.trainers[l] = tf.train.AdamOptimizer(lr).minimize(l, var_list=named_vars)
         #     prev = self.layer_names[i]
 
-        self.x = tf.Variable(0., validate_shape=False)
-        self.z = tf.Variable(0., validate_shape=False)
+        #self.x = tf.Variable(0., validate_shape=False)
+        #self.z = tf.Variable(0., validate_shape=False)
 
         self.sess = tf.Session()
         with self.sess.as_default():
@@ -137,13 +140,17 @@ class DensityEpoch(Callback):
 
 
     def on_epoch_end(self, epoch, logs={}):
-        x = eval(self.x)
-        z = eval(self.z)
-        print("x shape ", x.shape)
-        print("z shape ", z.shape)
-
-        n_samples = x.shape[0]
-        self.num_batches = floor(n_samples / self.batch)
+        #x = eval(self.x)
+        #z = eval(self.z)
+        
+        print("x shape ", self.data.shape)
+        #print("z shape ", z.shape)
+        if epoch <=1 :
+            self.sess = tf.Session()
+            with self.sess.as_default():
+                tf.global_variables_initializer().run()
+        n_samples = self.data.shape[0]
+        self.num_batches = int(n_samples / self.batch)
         self.sess = tf.Session()
         self.hist = defaultdict(list)
         with self.sess.as_default():
@@ -157,9 +164,9 @@ class DensityEpoch(Callback):
 
 
             for offset in range(0, (int(n_samples / self.batch) * self.batch), self.batch):  # inner
-                batch_data = x[perm[offset:(offset + self.batch)]]
-                self.sess.run([self.trainers[k] for k in self.keys], feed_dict={self.model.inputs[0]: x})
-                losses = self.sess.run([self.losses[i](self.outputs[i]) for i in range(len(self.outputs))], feed_dict={self.model.inputs[0]: x})
+                batch_data = self.data[perm[offset:(offset + self.batch)]]
+                self.sess.run([self.trainers[k] for k in self.keys], feed_dict={self.model.inputs[0]: batch_data})
+                losses = self.sess.run([self.losses[i](self.outputs[i]) for i in range(len(self.outputs))], feed_dict={self.model.inputs[0]: batch_data})
                 
                 for i in range(len(losses)):
                     try:
