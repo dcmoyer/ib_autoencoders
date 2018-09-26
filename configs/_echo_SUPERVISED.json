@@ -1,0 +1,102 @@
+{
+	"epochs": 200,
+	"batch": 100,
+	"optimizer": "Adam",
+	"optimizer_params": {"beta_1":0.5}, 
+	"lr": "alemi_lr_sched",
+	"input_shape": [28, 28, 1],
+	"latent_dims": [32, 32, 64, 64, 256, 64],
+	"decoder_dims": [64, 64, 64, 784],
+	"layers": 
+		[	
+			{
+			"layer": 0, 
+			"encoder": true,
+			"type": "Conv2D",
+			"activation": "custom_functions.activations.gated_linear",	
+			"layer_kwargs":
+				{
+					"kernel_size": 5,
+					"strides": 1, 
+					"padding": "same"
+				}
+			},
+			{
+			"layer": 1, 
+			"encoder": true,
+			"type": "Conv2D",
+			"activation": "custom_functions.activations.gated_linear",	
+			"layer_kwargs":
+				{
+					"kernel_size": 5,
+					"strides": 2, 
+					"padding": "same"
+				}
+			},
+			{
+			"layer": 2, 
+			"encoder": true,
+			"type": "Conv2D",
+			"activation": "custom_functions.activations.gated_linear",	
+			"layer_kwargs":
+				{
+					"kernel_size": 5,
+					"strides": 1, 
+					"padding": "same"
+				}
+			},
+			{
+			"layer": 3, 
+			"encoder": true,
+			"type": "Conv2D",
+			"activation": "custom_functions.activations.gated_linear",	
+			"layer_kwargs":
+				{
+					"kernel_size": 5,
+					"strides": 2, 
+					"padding": "same"
+				}
+			},
+			{
+			"layer": 4, 
+			"encoder": true,
+			"type": "Conv2D",
+			"activation": "custom_functions.activations.gated_linear",	
+			"layer_kwargs":
+				{
+					"kernel_size": 7,
+					"strides": 1, 
+					"padding": "valid"
+				}
+			},
+			{
+			"layer": 5, 
+			"encoder": true,
+			"type": "echo", 
+			"k": 1,
+			"layer_kwargs":{
+				"d_max": 50,
+				"init": -2.0,
+				"trainable": true,
+				"noise": "additive"
+			}	
+			},
+		], 
+	"initializer": "glorot_uniform",
+	"activation": {  
+		"decoder": "custom_functions.activations.gated_linear"
+		},
+	"output_activation" : "keras.activations.softmax",
+	"recon": "categorical_crossentropy", 
+	"losses":
+		[
+			{
+			"type": "echo",
+			"layer": -1, 
+			"encoder": true,
+			"weight": 1
+			}
+		],
+	"anneal_schedule": null, 
+	"anneal_function": null
+}

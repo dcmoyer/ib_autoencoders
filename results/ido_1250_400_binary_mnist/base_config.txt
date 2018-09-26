@@ -1,0 +1,17 @@
+layers : [{u'layer': 0, u'layer_kwargs': {u'padding': u'same', u'strides': 1, u'kernel_size': 5}, u'type': u'Conv2D', u'activation': u'custom_functions.activations.gated_linear', u'encoder': True}, {u'layer': 1, u'layer_kwargs': {u'padding': u'same', u'strides': 2, u'kernel_size': 5}, u'type': u'Conv2D', u'activation': u'custom_functions.activations.gated_linear', u'encoder': True}, {u'layer': 2, u'layer_kwargs': {u'padding': u'same', u'strides': 1, u'kernel_size': 5}, u'type': u'Conv2D', u'activation': u'custom_functions.activations.gated_linear', u'encoder': True}, {u'layer': 3, u'layer_kwargs': {u'padding': u'same', u'strides': 2, u'kernel_size': 5}, u'type': u'Conv2D', u'activation': u'custom_functions.activations.gated_linear', u'encoder': True}, {u'layer': 4, u'layer_kwargs': {u'padding': u'valid', u'strides': 1, u'kernel_size': 7}, u'type': u'Conv2D', u'activation': u'custom_functions.activations.gated_linear', u'encoder': True}, {u'layer': 5, u'type': u'multiplicative', u'k': 1, u'encoder': True}, {u'layer': 0, u'layer_kwargs': {u'padding': u'valid', u'strides': 1, u'kernel_size': 7}, u'type': u'Conv2DTranspose', u'activation': u'custom_functions.activations.gated_linear', u'encoder': False}, {u'layer': 1, u'layer_kwargs': {u'padding': u'same', u'strides': 1, u'kernel_size': 5}, u'type': u'Conv2DTranspose', u'activation': u'custom_functions.activations.gated_linear', u'encoder': False}, {u'layer': 2, u'layer_kwargs': {u'padding': u'same', u'strides': 2, u'kernel_size': 5}, u'type': u'Conv2DTranspose', u'activation': u'custom_functions.activations.gated_linear', u'encoder': False}, {u'layer': 3, u'layer_kwargs': {u'padding': u'same', u'strides': 1, u'kernel_size': 5}, u'type': u'Conv2DTranspose', u'activation': u'custom_functions.activations.gated_linear', u'encoder': False}, {u'layer': 4, u'layer_kwargs': {u'padding': u'same', u'strides': 2, u'kernel_size': 5}, u'type': u'Conv2DTranspose', u'activation': u'custom_functions.activations.gated_linear', u'encoder': False}, {u'layer': 5, u'layer_kwargs': {u'padding': u'same', u'strides': 1, u'kernel_size': 4}, u'type': u'Conv2DTranspose', u'activation': u'custom_functions.activations.gated_linear', u'encoder': False}, {u'layer': 6, u'layer_kwargs': {u'padding': u'same', u'strides': 1, u'kernel_size': 5}, u'type': u'Conv2D', u'activation': u'keras.activations.sigmoid', u'encoder': False}]
+output_activation : sigmoid
+optimizer : Adam
+recon : bce
+optimizer_params : {u'beta_1': 0.5}
+losses : [{u'output': -1, u'layer': -1, u'type': u'ido', u'weight': 1, u'encoder': True}]
+initializer : glorot_uniform
+batch : 100
+decoder_dims : [64, 64, 64, 32, 32, 32, 1]
+input_shape : [28, 28, 1]
+epochs : 400
+beta : 1.0
+lr : alemi_400
+anneal_schedule : None
+latent_dims : [32, 32, 64, 64, 256, 64]
+activation : {u'decoder': u'softplus', u'encoder': u'softplus'}
+anneal_function : None
